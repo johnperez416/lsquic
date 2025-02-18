@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * duck_client.c -- The siduck client.  See
  *      https://tools.ietf.org/html/draft-pardue-quic-siduck-00
@@ -62,6 +62,8 @@ duck_client_on_conn_closed (lsquic_conn_t *conn)
     lsquic_conn_ctx_t *ctx = lsquic_conn_get_ctx(conn);
     LSQ_NOTICE("Connection closed, stop client");
     prog_stop((struct prog *) ctx);
+
+    lsquic_conn_set_ctx(conn, NULL);
 }
 
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * test_h3_framing.c -- test generation of H3 frames
  */
@@ -63,7 +63,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-static const struct parse_funcs *g_pf = select_pf_by_ver(LSQVER_ID27);
+static const struct parse_funcs *g_pf = select_pf_by_ver(LSQVER_I001);
 
 struct test_ctl_settings
 {
@@ -343,7 +343,7 @@ init_test_objs (struct test_objs *tobjs, unsigned initial_conn_window,
     memset(tobjs, 0, sizeof(*tobjs));
     LSCONN_INITIALIZE(&tobjs->lconn);
     tobjs->lconn.cn_pf = g_pf;
-    tobjs->lconn.cn_version = LSQVER_ID27;
+    tobjs->lconn.cn_version = LSQVER_I001;
     tobjs->lconn.cn_esf_c = &lsquic_enc_session_common_ietf_v1;
     network_path.np_pack_size = packet_sz;
     tobjs->lconn.cn_if = &our_conn_if;
@@ -376,7 +376,7 @@ init_test_objs (struct test_objs *tobjs, unsigned initial_conn_window,
     tobjs->stream_if = &stream_if;
     tobjs->stream_if_ctx = &test_ctx;
     tobjs->ctor_flags = stream_ctor_flags;
-    if ((1 << tobjs->lconn.cn_version) & LSQUIC_IETF_VERSIONS)
+    //if ((1 << tobjs->lconn.cn_version) & LSQUIC_IETF_VERSIONS)
     {
         lsquic_qeh_init(&tobjs->qeh, &tobjs->lconn);
         s = lsquic_qeh_settings(&tobjs->qeh, 0, 0, 0, 0);
@@ -395,7 +395,7 @@ deinit_test_objs (struct test_objs *tobjs)
     lsquic_send_ctl_cleanup(&tobjs->send_ctl);
     lsquic_malo_destroy(tobjs->conn_pub.packet_out_malo);
     lsquic_mm_cleanup(&tobjs->eng_pub.enp_mm);
-    if ((1 << tobjs->lconn.cn_version) & LSQUIC_IETF_VERSIONS)
+    //if ((1 << tobjs->lconn.cn_version) & LSQUIC_IETF_VERSIONS)
         lsquic_qeh_cleanup(&tobjs->qeh);
 }
 

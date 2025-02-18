@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * prog.h -- common setup and options for QUIC program
  */
@@ -74,7 +74,7 @@ prog_init (struct prog *, unsigned lsquic_engine_flags, struct sport_head *,
 #   define IP_DONTFRAG_FLAG ""
 #endif
 
-#define PROG_OPTS "i:km:c:y:L:l:o:H:s:S:Y:z:G:W" RECVMMSG_FLAG SENDMMSG_FLAG \
+#define PROG_OPTS "i:km:c:y:L:l:o:H:s:S:Y:z:G:WA:" RECVMMSG_FLAG SENDMMSG_FLAG \
                                                             IP_DONTFRAG_FLAG
 
 /* Returns:

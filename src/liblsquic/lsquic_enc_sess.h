@@ -1,6 +1,8 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #ifndef LSQUIC_ENC_SESS_H
 #define LSQUIC_ENC_SESS_H 1
+
+#include "lsquic_shared_support.h"
 
 struct lsquic_alarmset;
 struct lsquic_engine_public;
@@ -37,10 +39,10 @@ enum lsquic_version;
 /* This enum maps to the list above */
 enum enc_level
 {
-    ENC_LEV_CLEAR,
-    ENC_LEV_EARLY,
     ENC_LEV_INIT,
-    ENC_LEV_FORW,
+    ENC_LEV_0RTT,
+    ENC_LEV_HSK,
+    ENC_LEV_APP,
     N_ENC_LEVS
 };
 
@@ -298,7 +300,9 @@ struct enc_session_funcs_iquic
                            void *(crypto_streams)[4],
                            const struct crypto_stream_if *,
                            const struct lsquic_cid *odcid,
-                           const struct lsquic_cid *iscid);
+                           const struct lsquic_cid *iscid,
+                           const struct lsquic_cid *rscid
+                            );
 
     void
     (*esfi_shake_stream)(enc_session_t *, struct lsquic_stream *,
@@ -315,33 +319,30 @@ struct enc_session_funcs_iquic
                                             const unsigned char *, size_t);
 };
 
-extern
+LSQUIC_EXTERN
 #ifdef NDEBUG
 const
 #endif
 struct enc_session_funcs_common lsquic_enc_session_common_gquic_1;
 
-extern
+LSQUIC_EXTERN
 #ifdef NDEBUG
 const
 #endif
 struct enc_session_funcs_common lsquic_enc_session_common_gquic_2;
 
-extern const struct enc_session_funcs_common lsquic_enc_session_common_ietf_v1;
+LSQUIC_EXTERN const struct enc_session_funcs_common lsquic_enc_session_common_ietf_v1;
 
-extern
+LSQUIC_EXTERN
 #ifdef NDEBUG
 const
 #endif
 struct enc_session_funcs_gquic lsquic_enc_session_gquic_gquic_1;
 
-extern const struct enc_session_funcs_iquic lsquic_enc_session_iquic_ietf_v1;
+LSQUIC_EXTERN const struct enc_session_funcs_iquic lsquic_enc_session_iquic_ietf_v1;
 
 #define select_esf_common_by_ver(ver) ( \
-    ver == LSQVER_ID27 ? &lsquic_enc_session_common_ietf_v1 : \
-    ver == LSQVER_ID29 ? &lsquic_enc_session_common_ietf_v1 : \
-    ver == LSQVER_I001 ? &lsquic_enc_session_common_ietf_v1 : \
-    ver == LSQVER_VERNEG ? &lsquic_enc_session_common_ietf_v1 : \
+    ver > LSQVER_050 ? &lsquic_enc_session_common_ietf_v1 : \
     ver == LSQVER_050 ? &lsquic_enc_session_common_gquic_2 : \
     &lsquic_enc_session_common_gquic_1 )
 
@@ -353,9 +354,9 @@ extern const struct enc_session_funcs_iquic lsquic_enc_session_iquic_ietf_v1;
 
 extern const char *const lsquic_enclev2str[];
 
-extern const struct lsquic_stream_if lsquic_cry_sm_if;
+LSQUIC_EXTERN const struct lsquic_stream_if lsquic_cry_sm_if;
 
-extern const struct lsquic_stream_if lsquic_mini_cry_sm_if;
+LSQUIC_EXTERN const struct lsquic_stream_if lsquic_mini_cry_sm_if;
 
 /* RFC 7301, Section 3.2 */
 #define ALERT_NO_APPLICATION_PROTOCOL 120
@@ -373,5 +374,17 @@ int
 lsquic_enc_sess_ietf_gen_quic_ctx (
                 const struct lsquic_engine_settings *settings,
                 enum lsquic_version version, unsigned char *buf, size_t bufsz);
+
+struct enc_sess_iquic;
+int
+iquic_esfi_init_server_tp (struct enc_sess_iquic *const enc_sess);
+
+int
+iquic_esfi_switch_version (enc_session_t *enc_session_p, lsquic_cid_t *dcid,
+                           int backup_keys);
+
+int
+iquic_esf_is_enc_level_ready (enc_session_t *enc_session_p,
+                              enum enc_level level);
 
 #endif

@@ -1,10 +1,16 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_hash.c -- A generic hash
  */
 
 #ifndef LSQUIC_HASH_H
 #define LSQUIC_HASH_H
+
+#include <inttypes.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct lsquic_hash;
 
@@ -16,7 +22,7 @@ struct lsquic_hash_elem
     const void     *qhe_key_data;
     void           *qhe_value;
     unsigned        qhe_key_len;
-    unsigned        qhe_hash_val;
+    uint64_t        qhe_hash_val;
     enum {
         QHE_HASHED  = 1 << 0,
     }               qhe_flags;
@@ -27,7 +33,10 @@ lsquic_hash_create (void);
 
 struct lsquic_hash *
 lsquic_hash_create_ext (int (*cmp)(const void *, const void *, size_t),
-                    unsigned (*hash)(const void *, size_t, unsigned seed));
+                    uint64_t (*hash)(const void *, size_t, uint64_t seed));
+
+int
+lsquic_hash_set_seed (struct lsquic_hash *, uint64_t seed);
 
 void
 lsquic_hash_destroy (struct lsquic_hash *);
@@ -58,4 +67,9 @@ lsquic_hash_count (struct lsquic_hash *);
 
 size_t
 lsquic_hash_mem_used (const struct lsquic_hash *);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

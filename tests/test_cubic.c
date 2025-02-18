@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,8 @@
 #include "lsquic_packet_common.h"
 #include "lsquic_packet_out.h"
 
-static const struct cong_ctl_if *const cci = &lsquic_cong_cubic_if;
+//static const struct cong_ctl_if *const cci = &lsquic_cong_cubic_if; // will not work on MSVC
+#define cci ((const struct cong_ctl_if *const)&lsquic_cong_cubic_if)
 
 static void
 test_post_quiescence_explosion (void)

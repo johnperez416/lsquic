@@ -14,8 +14,31 @@ and HTTP/3 functionality for servers and clients.  Most of the code in this
 distribution is used in our own products: LiteSpeed Web Server, LiteSpeed ADC,
 and OpenLiteSpeed.
 
-Currently supported QUIC versions are v1, Internet-Draft versions 29, and 27;
+Currently supported QUIC versions are v1, v2, Internet-Draft versions 29, and 27;
 and the older "Google" QUIC versions Q043, Q046, an Q050.
+
+Standard Compliance
+-------------------
+
+LiteSpeed QUIC is mostly compliant to the follow RFCs:
+
+- [RFC 9000](https://www.rfc-editor.org/rfc/rfc9000) QUIC: A UDP-Based Multiplexed and Secure Transport
+- [RFC 9001](https://www.rfc-editor.org/rfc/rfc9001) Using TLS to Secure QUIC
+- [RFC 9002](https://www.rfc-editor.org/rfc/rfc9002) QUIC Loss Detection and Congestion Control
+- [RFC 9114](https://www.rfc-editor.org/rfc/rfc9114) HTTP/3
+- [RFC 9204](https://www.rfc-editor.org/rfc/rfc9204) QPACK: Field Compression for HTTP/3
+
+QUIC protocol extensions
+------------------------
+
+The following QUIC protocol extensions are implemented:
+
+- [RFC 9368](https://www.rfc-editor.org/rfc/rfc9368) Compatible Version Negotiation for QUIC
+- [RFC 9369](https://www.rfc-editor.org/rfc/rfc9369) QUIC Version 2
+- [RFC 9218](https://www.rfc-editor.org/rfc/rfc9218) Extensible Prioritization Scheme for HTTP
+- [RFC 9221](https://www.rfc-editor.org/rfc/rfc9221) An Unreliable Datagram Extension to QUIC
+- [RFC 9287](https://www.rfc-editor.org/rfc/rfc9287) Greasing the QUIC Bit
+- [ACK Frequency](https://datatracker.ietf.org/doc/draft-ietf-quic-ack-frequency/)
 
 Documentation
 -------------
@@ -49,8 +72,9 @@ You may need to install pre-requisites like zlib and libevent.
 2. Use specific BoringSSL version
 
 ```
-git checkout a9670a8b476470e6f874fef3554e8059683e1413
+git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd
 ```
+Or, just try the latest master branch.
 
 3. Compile the library
 
@@ -88,8 +112,7 @@ as follows:
 ```
 git clone https://github.com/litespeedtech/lsquic.git
 cd lsquic
-git submodule init
-git submodule update
+git submodule update --init
 ```
 
 2. Compile the library
@@ -124,8 +147,7 @@ The library and the example client and server can be built with Docker.
 Initialize Git submodules:
 ```
 cd lsquic
-git submodule init
-git submodule update
+git submodule update --init
 ```
 
 Build the Docker image:
@@ -135,7 +157,7 @@ docker build -t lsquic .
 
 Then you can use the examples from the command line.  For example:
 ```
-sudo docker run -it --rm lsquic http_client -s www.google.com  -p / -o version=h3-29
+sudo docker run -it --rm lsquic http_client -s www.google.com  -p / -o version=h3
 sudo docker run -p 12345:12345/udp -v /path/to/certs:/mnt/certs -it --rm lsquic http_server -c www.example.com,/mnt/certs/chain,/mnt/certs/key
 ```
 

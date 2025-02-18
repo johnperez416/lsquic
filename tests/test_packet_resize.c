@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /* Test packet resizing */
 
 #include <assert.h>
@@ -214,7 +214,7 @@ new_packet (struct test_ctx *ctx)
                                      */
 
     packet_out = lsquic_packet_out_new(&ctx->enpub.enp_mm, ctx->enpub.enp_mm.malo.packet_out, 1,
-                         &ctx->lconn, PACKNO_BITS_0, 0, NULL, &ctx->path, HETY_NOT_SET);
+                         &ctx->lconn, PACKNO_BITS_0, 0, NULL, &ctx->path, HETY_SHORT);
     if (packet_out)
         packet_out->po_packno = packno++;
 
@@ -606,8 +606,11 @@ run_test (const struct test_spec *spec, enum lsquic_version version)
     LSQ_INFO("Running test on line %d: %s", spec->lineno, spec->desc);
     if (spec->versions && !(spec->versions & (1 << version)))
     {
-        LSQ_INFO("Not applicable to version %s, skip",
-                                                lsquic_ver2str[version]);
+#ifndef _MSC_VER
+        LSQ_INFO("Not applicable to version %s, skip", lsquic_ver2str[version]);
+#else
+        LSQ_INFO("Not applicable to version %d, skip", version);
+#endif
         return;
     }
 
@@ -765,7 +768,11 @@ main (int argc, char **argv)
     {
         if (!((1 << version) & LSQUIC_DF_VERSIONS))
             continue;
+#ifndef _MSC_VER
         LSQ_INFO("testing version %s", lsquic_ver2str[version]);
+#else
+        LSQ_INFO("testing version %d", version);
+#endif
         for (spec = test_specs; spec < test_specs + sizeof(test_specs) / sizeof(test_specs[0]); ++spec)
             run_test(spec, version);
     }

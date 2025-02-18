@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * md5_server.c -- Read one or more streams from the client and return
  *                 MD5 sum of the payload.
@@ -95,6 +95,8 @@ server_on_conn_closed (lsquic_conn_t *conn)
     else
         LSQ_NOTICE("Connection closed");
     TAILQ_REMOVE(&conn_h->server_ctx->conn_ctxs, conn_h, next_connh);
+
+    lsquic_conn_set_ctx(conn, NULL);
     free(conn_h);
 }
 

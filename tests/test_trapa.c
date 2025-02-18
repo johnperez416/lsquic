@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * test_trapa.c -- Test transport parameters.
  */
@@ -72,7 +72,7 @@ static const struct trapa_test tests[] =
             .tp_max_idle_timeout = 10 * 1000,
             .tp_max_ack_delay = TP_DEF_MAX_ACK_DELAY,
             .tp_active_connection_id_limit = 7,
-            .tp_initial_source_cid = { .len = 8, .u_cid.id = 0x0807060504030201ull, },
+            .tp_initial_source_cid = { .len = 8, .buf = "\x01\x02\x03\x04\x05\x06\x07\x08", },
         },
         .is_server = 0,
         .enc_len = 36,

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <inttypes.h>
 #include <string.h>
@@ -239,20 +239,19 @@ lsquic_generate_cid (lsquic_cid_t *cid, size_t len)
 
 
 void
-lsquic_generate_scid (void *ctx, struct lsquic_conn *lconn, lsquic_cid_t *scid,
+lsquic_generate_scid (void *ctx, struct lsquic_conn *lconn, uint8_t *cid,
                                                                 unsigned len)
 {
     if (len)
-        lsquic_generate_cid(scid, len);
-    else
-        scid->len = len;
+        RAND_bytes(cid, len);
 }
 
 
 void
 lsquic_generate_cid_gquic (lsquic_cid_t *cid)
 {
-    lsquic_generate_cid(cid, GQUIC_CID_LEN);
+    RAND_bytes(cid->idbuf, GQUIC_CID_LEN);
+    cid->len = GQUIC_CID_LEN;
 }
 
 
@@ -274,9 +273,7 @@ lsquic_conn_status (struct lsquic_conn *lconn, char *errbuf, size_t bufsz)
 const lsquic_cid_t *
 lsquic_conn_log_cid (const struct lsquic_conn *lconn)
 {
-    if (lconn->cn_if && lconn->cn_if->ci_get_log_cid)
-        return lconn->cn_if->ci_get_log_cid(lconn);
-    return CN_SCID(lconn);
+    return &lconn->cn_logid;
 }
 
 

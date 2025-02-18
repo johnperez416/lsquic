@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_rechist.c -- History of received packets.
  */
@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 #include "lsquic_int_types.h"
 #include "lsquic_rechist.h"
@@ -57,6 +59,50 @@ rechist_free_elem (struct lsquic_rechist *rechist, unsigned idx)
 
 #define RE_HIGH(el_) ((el_)->re_low + (el_)->re_count - 1)
 
+#if LSQUIC_TEST
+static void
+rechist_dump_elem(struct rechist_elem *el)
+{
+    fprintf(stderr, "[%" PRIu64 "-%" PRIu64 "]", RE_HIGH(el), el->re_low);
+}
+
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
+static void
+rechist_dump(struct lsquic_rechist *rechist)
+{
+    fprintf(stderr,
+            "%p: cutoff %" PRIu64 " l. acked %" PRIu64
+            " masks %u alloced %u used %u max ranges %u head %u\n",
+            rechist,
+            rechist->rh_cutoff, 
+            rechist->rh_largest_acked_received,
+            rechist->rh_n_masks,
+            rechist->rh_n_alloced,
+            rechist->rh_n_used,
+            rechist->rh_max_ranges,
+            rechist->rh_head);
+
+    if (rechist->rh_n_used)
+    {
+        int idx = rechist->rh_head;
+        fprintf(stderr, " ");
+        unsigned n_elems = 0;
+        while (n_elems < rechist->rh_n_used)
+        {
+            ++n_elems;
+            struct rechist_elem *el =  &rechist->rh_elems[idx];
+            fprintf(stderr, " (%u)", idx); 
+            rechist_dump_elem(el);            
+            if (el->re_next == UINT_MAX)
+                break;
+            idx = el->re_next;
+        }
+        fprintf(stderr, "\n");
+    }
+}
+#endif /* LSQUIC_TEST */
 
 static unsigned
 find_free_slot (uintptr_t slots)
@@ -174,6 +220,8 @@ rechist_alloc_elem (struct lsquic_rechist *rechist)
     idx = find_free_slot(*mask);
     *mask |= 1ull << idx;
     ++rechist->rh_n_used;
+    /* Note that re_next is invalid at this point, caller must set it */
+
     return idx + i * BITS_PER_MASK;
 }
 
@@ -201,6 +249,9 @@ rechist_test_sanity (const struct lsquic_rechist *rechist)
         {
             ++n_elems;
             idx = el - rechist->rh_elems;
+            if (n_elems > rechist->rh_n_alloced
+                || idx >=  rechist->rh_n_alloced)
+                break;
             masks[idx >> LOG2_BITS] |= 1ull << (idx & ((1u << LOG2_BITS) - 1));
             if (el->re_next != UINT_MAX)
                 el = &rechist->rh_elems[el->re_next];
@@ -215,7 +266,6 @@ rechist_test_sanity (const struct lsquic_rechist *rechist)
     free(masks);
 }
 #define rechist_sanity_check(rechist_) do {                         \
-    if (0 == ++(rechist_)->rh_n_ops % 127)                          \
         rechist_test_sanity(rechist_);                              \
 } while (0)
 #else
@@ -231,7 +281,7 @@ lsquic_rechist_received (lsquic_rechist_t *rechist, lsquic_packno_t packno,
     ptrdiff_t next_idx, prev_idx;
     int idx;
 
-    if (rechist->rh_n_alloced == 0)
+    if (rechist->rh_n_used == 0)
         goto first_elem;
 
     if (packno < rechist->rh_cutoff)
@@ -318,10 +368,10 @@ lsquic_rechist_received (lsquic_rechist_t *rechist, lsquic_packno_t packno,
     rechist->rh_elems[idx].re_low   = packno;
     rechist->rh_elems[idx].re_count = 1;
     rechist->rh_elems[idx].re_next  = next_idx;
-    if (next_idx == rechist->rh_head)
+    if (next_idx == (ptrdiff_t)rechist->rh_head)
         rechist->rh_head = idx;
     else
-        rechist->rh_elems[prev_idx].re_next  = idx;
+        rechist->rh_elems[prev_idx].re_next = idx;
 
     rechist_sanity_check(rechist);
     return REC_ST_OK;

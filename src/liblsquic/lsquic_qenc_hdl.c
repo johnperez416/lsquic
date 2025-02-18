@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_qenc_hdl.c -- QPACK encoder streams handler
  */
@@ -34,6 +34,7 @@
 #define LSQUIC_LOG_CONN_ID lsquic_conn_log_cid(qeh->qeh_conn)
 #include "lsquic_logger.h"
 
+#define QENC_MIN_DYN_TABLE_SIZE 32u
 
 static int
 qeh_write_type (struct qpack_enc_hdl *qeh)
@@ -123,6 +124,8 @@ lsquic_qeh_settings (struct qpack_enc_hdl *qeh, unsigned max_table_size,
     enc_opts = LSQPACK_ENC_OPT_STAGE_2
              | (server ? LSQPACK_ENC_OPT_SERVER : 0);
     qeh->qeh_tsu_sz = sizeof(qeh->qeh_tsu_buf);
+    if (QENC_MIN_DYN_TABLE_SIZE > dyn_table_size)
+        dyn_table_size = 0;
     if (0 != lsqpack_enc_init(&qeh->qeh_encoder, (void *) qeh->qeh_conn,
                 max_table_size, dyn_table_size, max_risked_streams, enc_opts,
                 qeh->qeh_tsu_buf, &qeh->qeh_tsu_sz))
@@ -298,15 +301,15 @@ qeh_in_on_read (struct lsquic_stream *stream, lsquic_stream_ctx_t *ctx)
     {
         if (nread < 0)
         {
-            LSQ_WARN("cannot read from encoder stream: %s", strerror(errno));
+            LSQ_WARN("cannot read from decoder stream: %s", strerror(errno));
             qeh->qeh_conn->cn_if->ci_internal_error(qeh->qeh_conn,
-                                        "cannot read from encoder stream");
+                                        "cannot read from decoder stream");
         }
         else
         {
-            LSQ_INFO("encoder stream closed by peer: abort connection");
+            LSQ_INFO("decoder stream closed by peer: abort connection");
             qeh->qeh_conn->cn_if->ci_abort_error(qeh->qeh_conn, 1,
-                HEC_CLOSED_CRITICAL_STREAM, "encoder stream closed");
+                HEC_CLOSED_CRITICAL_STREAM, "decoder stream closed");
         }
         lsquic_stream_wantread(stream, 0);
     }
@@ -420,7 +423,7 @@ qeh_write_headers (struct qpack_enc_hdl *qeh, lsquic_stream_id_t stream_id,
     {
         if (headers->headers[i].buf == NULL)
             continue;
-        enc_sz = sizeof(enc_buf);
+        enc_sz = qeh->qeh_encoder.qpe_cur_max_capacity * 2;
         hea_sz = end - p;
         st = lsqpack_enc_encode(&qeh->qeh_encoder, enc_buf, &enc_sz, p,
                                 &hea_sz, &headers->headers[i], enc_flags);
@@ -512,6 +515,7 @@ qeh_write_headers (struct qpack_enc_hdl *qeh, lsquic_stream_id_t stream_id,
             "%.3f", total_enc_sz, lsquic_frab_list_size(&qeh->qeh_fral),
             *headers_sz, lsqpack_enc_ratio(&qeh->qeh_encoder));
         retval = QWH_PARTIAL;
+        lsquic_stream_wantwrite(qeh->qeh_enc_sm_out, 1);
         goto end;
     }
 

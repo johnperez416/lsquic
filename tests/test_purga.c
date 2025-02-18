@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,8 +22,10 @@ static int s_eight;
 static void
 bloom_test (unsigned count, unsigned miss_searches, unsigned hit_searches)
 {
-    struct lsquic_purga *purga;
+#ifndef NDEBUG
     struct purga_bloom_stats *stats;
+#endif
+    struct lsquic_purga *purga;
     struct purga_el *puel;
     lsquic_cid_t *cids, cid;
     unsigned i, j;
@@ -73,10 +75,12 @@ bloom_test (unsigned count, unsigned miss_searches, unsigned hit_searches)
         }
     }
 
+#ifndef NDEBUG
     stats = lsquic_purga_get_bloom_stats(purga);
     LSQ_NOTICE("searches: %lu, false hits: %lu, false hit ratio: %lf",
         stats->searches, stats->false_hits,
         (double) stats->false_hits / (double) stats->searches);
+#endif
 
     lsquic_purga_destroy(purga);
     free(cids);

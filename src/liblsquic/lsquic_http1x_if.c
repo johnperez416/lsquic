@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
@@ -60,6 +60,9 @@ struct header_writer_ctx
 #define HWC_PSEH_LEN(hwc, ph) ((int) strlen((hwc)->pseh_bufs[ph]))
 
 #define HWC_PSEH_VAL(hwc, ph) ((hwc)->pseh_bufs[ph])
+
+/* flags for frames with request headers */
+#define HWC_REQUEST_HANDLING_FLAGS (HWC_SERVER|HWC_PUSH_PROMISE)
 
 static void *
 h1h_create_header_set (void *ctx, lsquic_stream_t *stream, int is_push_promise)
@@ -396,7 +399,15 @@ add_real_header (struct header_writer_ctx *hwc, struct lsxpack_header *xhdr)
     val_len = xhdr->val_len;
 
     if (4 == name_len && 0 == memcmp(name, "host", 4))
+    {
+        if(hwc->pseh_mask & BIT(PSEH_AUTHORITY))
+        {
+            LSQ_INFO("authority header was sent. ignoring host header with value `%.*s'", val_len, val);
+            return 0;
+        }
+
         hwc->hwc_flags |= HWC_SEEN_HOST;
+    }
 
     n_upper = 0;
     for (i = 0; i < name_len; ++i)
@@ -469,15 +480,22 @@ h1h_finish_hset (struct header_writer_ctx *hwc)
         return st;                                                      \
 } while (0)
 
-    if ((hwc->pseh_mask & BIT(PSEH_AUTHORITY)) &&
-                                0 == (hwc->hwc_flags & HWC_SEEN_HOST))
+    if(0 == (hwc->hwc_flags & HWC_SEEN_HOST) && 0 != (hwc->hwc_flags & HWC_REQUEST_HANDLING_FLAGS))
     {
-        LSQ_DEBUG("Setting 'Host: %.*s'", HWC_PSEH_LEN(hwc, PSEH_AUTHORITY),
+        if((hwc->pseh_mask & BIT(PSEH_AUTHORITY)))
+        {
+            LSQ_DEBUG("Setting 'Host: %.*s'", HWC_PSEH_LEN(hwc, PSEH_AUTHORITY),
                                             HWC_PSEH_VAL(hwc, PSEH_AUTHORITY));
-        HWC_UH_WRITE(hwc, "Host: ", 6);
-        HWC_UH_WRITE(hwc, HWC_PSEH_VAL(hwc, PSEH_AUTHORITY),
-                                        HWC_PSEH_LEN(hwc, PSEH_AUTHORITY));
-        HWC_UH_WRITE(hwc, "\r\n", 2);
+            HWC_UH_WRITE(hwc, "Host: ", 6);
+            HWC_UH_WRITE(hwc, HWC_PSEH_VAL(hwc, PSEH_AUTHORITY),
+                                            HWC_PSEH_LEN(hwc, PSEH_AUTHORITY));
+            HWC_UH_WRITE(hwc, "\r\n", 2);
+        }
+        else
+        {
+            LSQ_INFO("both host header and authority pseudo header were not found");
+            return 1;
+        }
     }
 
     if (hwc->cookie_val)
@@ -527,12 +545,23 @@ h1h_prepare_decode (void *hset, struct lsxpack_header *xhdr, size_t req_space)
         if (0 == hwc->hwc_header_buf_nalloc
                                     || req_space > hwc->hwc_header_buf_nalloc)
         {
-            buf = malloc(req_space);
+            if (0 == hwc->hwc_header_buf_nalloc)
+            {
+                buf = malloc(req_space);
+            }
+            else
+            {
+                buf = realloc(hwc->hwc_xhdr.buf, req_space);
+            }
+
             if (!buf)
             {
-                LSQ_DEBUG("cannot allocate %zd bytes", req_space);
+                LSQ_WARN("cannot %s %zd bytes",
+                    hwc->hwc_header_buf_nalloc ? "reallocate to" : "allocate", req_space);
                 return NULL;
             }
+
+            hwc->hwc_xhdr.buf = buf;
             hwc->hwc_header_buf_nalloc = req_space;
         }
         else

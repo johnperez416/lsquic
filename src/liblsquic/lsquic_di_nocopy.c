@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_di_nocopy.c -- The "no-copy" data in stream.
  *
@@ -395,8 +395,6 @@ nocopy_di_insert_frame (struct data_in *data_in,
         break;
     case INS_FRAME_DUP:
     case INS_FRAME_ERR:
-        lsquic_packet_in_put(ncdi->ncdi_conn_pub->mm, new_frame->packet_in);
-        lsquic_malo_put(new_frame);
         break;
     default:
         break;

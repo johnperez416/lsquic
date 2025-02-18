@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_packet_out.c
  */
@@ -382,7 +382,7 @@ lsquic_packet_out_chop_regen (lsquic_packet_out_t *packet_out)
         }
     }
 
-    assert(adj);    /* Otherwise why are we called? */
+    //assert(adj);    /* Otherwise why are we called? */
     packet_out->po_regen_sz = 0;
     packet_out->po_frame_types &= ~BQUIC_FRAME_REGEN_MASK;
 }
@@ -479,7 +479,7 @@ lsquic_packet_out_turn_on_fin (struct lsquic_packet_out *packet_out,
 static unsigned
 offset_to_dcid (const struct lsquic_packet_out *packet_out)
 {
-    if (packet_out->po_header_type == HETY_NOT_SET)
+    if (packet_out->po_header_type == HETY_SHORT)
         return 1;
     else
     {
@@ -540,6 +540,11 @@ lsquic_packet_out_pad_over (struct lsquic_packet_out *packet_out,
     {
         if ((1 << frec->fe_frame_type) & frame_types)
         {
+            if ((1 << frec->fe_frame_type) & BQUIC_FRAME_REGEN_MASK)
+            {
+                packet_out->po_regen_sz -= frec->fe_len;
+            }
+
             memset(packet_out->po_data + frec->fe_off, 0, frec->fe_len);
             frec->fe_frame_type = QUIC_FRAME_PADDING;
         }

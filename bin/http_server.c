@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * http_server.c -- A simple HTTP/QUIC server
  *
@@ -375,6 +375,7 @@ http_server_on_conn_closed (lsquic_conn_t *conn)
         }
     }
     /* No provision is made to stop HTTP server */
+    lsquic_conn_set_ctx(conn, NULL);
     free(conn_h);
 }
 
@@ -1776,7 +1777,7 @@ usage (const char *prog)
 "                 write; negative means always use remaining file size.\n"
 "                 Incompatible with -w.\n"
 #endif
-"   -y DELAY    Delay response for this many seconds -- use for debugging\n"
+"   -Y DELAY    Delay response for this many seconds -- use for debugging\n"
 "   -Q ALPN     Use hq mode; ALPN could be \"hq-29\", for example.\n"
             , prog);
 }
@@ -1986,7 +1987,7 @@ main (int argc, char **argv)
                                                         "cannot use -P\n");
             exit(EXIT_FAILURE);
 #endif
-        case 'y':
+        case 'Y':
             server_ctx.delay_resp_sec = atoi(optarg);
             break;
         case 'h':

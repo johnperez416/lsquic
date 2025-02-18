@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_packet_in.h
  */
@@ -88,9 +88,12 @@ typedef struct lsquic_packet_in
         PI_LOG_QL_BITS  = (1 <<14),
         PI_SQUARE_BIT   = (1 <<15),
         PI_LOSS_BIT     = (1 <<16),
+        PI_VER_PARSED   = (1 <<17),
+        PI_FIRST_INIT   = (1 <<18),
     }                               pi_flags;
     /* pi_token and pi_token_size are set in Initial and Retry packets */
     unsigned short                  pi_token_size; /* Size of the token */
+    unsigned short                  pi_pkt_size;   /* Size of the whole packet */
     unsigned char                   pi_token;      /* Offset to token */
     /* pi_odcid and pi_odcid_len are only set in Retry packets for I-D < 25 */
     unsigned char                   pi_odcid;      /* Offset to Original DCID */
@@ -101,6 +104,7 @@ typedef struct lsquic_packet_in
     unsigned char                   pi_nonce;      /* Offset to nonce */
     enum header_type                pi_header_type:8;
     unsigned char                   pi_path_id;
+    unsigned char                   pi_version;    /* parsed enum lsquic_version */
     /* If PI_OWN_DATA flag is not set, `pi_data' points to user-supplied
      * packet data, which is NOT TO BE MODIFIED.
      */

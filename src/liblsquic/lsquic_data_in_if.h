@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_data_in_if.h -- DATA in interface
  */
@@ -106,6 +106,6 @@ lsquic_data_in_hash_insert_data_frame (struct data_in *data_in,
                 const struct data_frame *data_frame, uint64_t read_offset);
 
 struct data_in *
-lsquic_data_in_error_new ();
+lsquic_data_in_error_new (void);
 
 #endif

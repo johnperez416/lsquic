@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #define _GNU_SOURCE         /* for memmem */
 
 #include <assert.h>
@@ -767,7 +767,7 @@ gquic2_setup_handshake_keys (struct lsquic_enc_session *enc_session)
                                                     secret, sizeof(secret)))
             goto err;
         if (enc_session->es_flags & ES_LOG_SECRETS)
-            log_crypto_ctx(enc_session, ENC_LEV_CLEAR, i);
+            log_crypto_ctx(enc_session, ENC_LEV_INIT, i);
     }
 
     return 0;
@@ -1810,29 +1810,28 @@ get_valid_scfg (const struct lsquic_enc_session *enc_session,
     time_t t = time(NULL);
     unsigned int real_len;
     SCFG_info_t *temp_scfg;
-    SCFG_t *tmp_scfg_copy = NULL;
     void *scfg_ptr;
     int ret;
     unsigned msg_len, server_config_sz;
     struct message_writer mw;
 
-    if (enc_session->enpub->enp_server_config->lsc_scfg && (enc_session->enpub->enp_server_config->lsc_scfg->info.expy > (uint64_t)t))
-        return enc_session->enpub->enp_server_config;
+    if (enpub->enp_server_config->lsc_scfg && (enpub->enp_server_config->lsc_scfg->info.expy > (uint64_t)t))
+        return enpub->enp_server_config;
 
     ret = shi->shi_lookup(shi_ctx, SERVER_SCFG_KEY, SERVER_SCFG_KEY_SIZE,
                           &scfg_ptr, &real_len);
     if (ret == 1)
     {
         if (config_has_correct_size(enc_session, scfg_ptr, real_len) &&
-                (enc_session->enpub->enp_server_config->lsc_scfg = scfg_ptr,
-                            enc_session->enpub->enp_server_config->lsc_scfg->info.expy > (uint64_t)t))
+                (enpub->enp_server_config->lsc_scfg = scfg_ptr,
+                            enpub->enp_server_config->lsc_scfg->info.expy > (uint64_t)t))
         {
             /* Why need to init here, because this memory may be read from SHM,
              * the struct is ready but AEAD_CTX is not ready.
              **/
-            EVP_AEAD_CTX_init(&enc_session->enpub->enp_server_config->lsc_stk_ctx, EVP_aead_aes_128_gcm(),
-                              enc_session->enpub->enp_server_config->lsc_scfg->info.skt_key, 16, 12, NULL);
-            return enc_session->enpub->enp_server_config;
+            EVP_AEAD_CTX_init(&enpub->enp_server_config->lsc_stk_ctx, EVP_aead_aes_128_gcm(),
+                              enpub->enp_server_config->lsc_scfg->info.skt_key, 16, 12, NULL);
+            return enpub->enp_server_config;
         }
         else
         {
@@ -1850,12 +1849,12 @@ get_valid_scfg (const struct lsquic_enc_session *enc_session,
     MSG_LEN_ADD(msg_len, sizeof(temp_scfg->orbt));
     MSG_LEN_ADD(msg_len, sizeof(temp_scfg->expy));
 
-    server_config_sz = sizeof(*enc_session->enpub->enp_server_config->lsc_scfg) + MSG_LEN_VAL(msg_len);
-    enc_session->enpub->enp_server_config->lsc_scfg = malloc(server_config_sz);
-    if (!enc_session->enpub->enp_server_config->lsc_scfg)
+    server_config_sz = sizeof(*enpub->enp_server_config->lsc_scfg) + MSG_LEN_VAL(msg_len);
+    enpub->enp_server_config->lsc_scfg = malloc(server_config_sz);
+    if (!enpub->enp_server_config->lsc_scfg)
         return NULL;
 
-    temp_scfg = &enc_session->enpub->enp_server_config->lsc_scfg->info;
+    temp_scfg = &enpub->enp_server_config->lsc_scfg->info;
     RAND_bytes(temp_scfg->skt_key, sizeof(temp_scfg->skt_key));
     RAND_bytes(temp_scfg->sscid, sizeof(temp_scfg->sscid));
     RAND_bytes(temp_scfg->priv_key, sizeof(temp_scfg->priv_key));
@@ -1866,7 +1865,7 @@ get_valid_scfg (const struct lsquic_enc_session *enc_session,
     temp_scfg->orbt = 0;
     temp_scfg->expy = t + settings->es_sttl;
 
-    MW_BEGIN(&mw, QTAG_SCFG, 8, enc_session->enpub->enp_server_config->lsc_scfg->scfg);
+    MW_BEGIN(&mw, QTAG_SCFG, 8, enpub->enp_server_config->lsc_scfg->scfg);
     MW_WRITE_BUFFER(&mw, QTAG_VER, enpub->enp_ver_tags_buf,
                                                 enpub->enp_ver_tags_len);
     MW_WRITE_UINT32(&mw, QTAG_AEAD, temp_scfg->aead);
@@ -1877,7 +1876,7 @@ get_valid_scfg (const struct lsquic_enc_session *enc_session,
     MW_WRITE_UINT64(&mw, QTAG_ORBT, temp_scfg->orbt);
     MW_WRITE_UINT64(&mw, QTAG_EXPY, temp_scfg->expy);
     MW_END(&mw);
-    assert(MW_P(&mw) == enc_session->enpub->enp_server_config->lsc_scfg->scfg + MSG_LEN_VAL(msg_len));
+    assert(MW_P(&mw) == enpub->enp_server_config->lsc_scfg->scfg + MSG_LEN_VAL(msg_len));
 
     temp_scfg->scfg_len = MSG_LEN_VAL(msg_len);
 
@@ -1885,20 +1884,15 @@ get_valid_scfg (const struct lsquic_enc_session *enc_session,
 
 //     /* TODO: will shi_delete call free to release the buffer? */
 //     shi->shi_delete(shi_ctx, SERVER_SCFG_KEY, SERVER_SCFG_KEY_SIZE);
-    void *scfg_key = strdup(SERVER_SCFG_KEY);
-    shi->shi_insert(shi_ctx, scfg_key, SERVER_SCFG_KEY_SIZE,
-            enc_session->enpub->enp_server_config->lsc_scfg, server_config_sz, t + settings->es_sttl);
+    shi->shi_insert(shi_ctx, SERVER_SCFG_KEY, SERVER_SCFG_KEY_SIZE,
+            enpub->enp_server_config->lsc_scfg, server_config_sz, t + settings->es_sttl);
 
-    ret = shi->shi_lookup(shi_ctx, scfg_key, SERVER_SCFG_KEY_SIZE,
+    ret = shi->shi_lookup(shi_ctx, SERVER_SCFG_KEY, SERVER_SCFG_KEY_SIZE,
                           &scfg_ptr, &real_len);
     if (ret == 1)
     {
-        tmp_scfg_copy = scfg_ptr;
-        if (tmp_scfg_copy != enc_session->enpub->enp_server_config->lsc_scfg)
-        {
-            free(enc_session->enpub->enp_server_config->lsc_scfg);
-            enc_session->enpub->enp_server_config->lsc_scfg = tmp_scfg_copy;
-        }
+        free(enpub->enp_server_config->lsc_scfg);
+        enpub->enp_server_config->lsc_scfg = scfg_ptr;
     }
     else
     {
@@ -1906,12 +1900,12 @@ get_valid_scfg (const struct lsquic_enc_session *enc_session,
         LSQ_DEBUG("get_valid_scfg got an shi internal error.\n");
     }
 
-    ret = EVP_AEAD_CTX_init(&enc_session->enpub->enp_server_config->lsc_stk_ctx, EVP_aead_aes_128_gcm(),
-                              enc_session->enpub->enp_server_config->lsc_scfg->info.skt_key,
-                              sizeof(enc_session->enpub->enp_server_config->lsc_scfg->info.skt_key), 12, NULL);
+    ret = EVP_AEAD_CTX_init(&enpub->enp_server_config->lsc_stk_ctx, EVP_aead_aes_128_gcm(),
+                              enpub->enp_server_config->lsc_scfg->info.skt_key,
+                              sizeof(enpub->enp_server_config->lsc_scfg->info.skt_key), 12, NULL);
 
     LSQ_DEBUG("get_valid_scfg::EVP_AEAD_CTX_init return %d.", ret);
-    return enc_session->enpub->enp_server_config;
+    return enpub->enp_server_config;
 }
 
 
@@ -3075,19 +3069,25 @@ decrypt_packet (struct lsquic_enc_session *enc_session, uint8_t path_id,
             key = enc_session->dec_ctx_f;
             memcpy(nonce, enc_session->dec_key_nonce_f, 4);
             LSQ_DEBUG("decrypt_packet using 'F' key...");
-            enc_level = ENC_LEV_FORW;
+            enc_level = ENC_LEV_APP;
         }
         else
         {
             key = enc_session->dec_ctx_i;
             memcpy(nonce, enc_session->dec_key_nonce_i, 4);
             LSQ_DEBUG("decrypt_packet using 'I' key...");
-            enc_level = ENC_LEV_INIT;
+            enc_level = ENC_LEV_HSK;
         }
         memcpy(nonce + 4, &path_id_packet_number,
                sizeof(path_id_packet_number));
 
         *out_len = data_len;
+        if (data_len + *header_len > max_out_len)
+        {
+            LSQ_DEBUG("decrypt_packet size is larger than 1370, header: %zd, "
+                      "data: %zu, giveup.", *header_len, data_len);
+            return (enum enc_level) -1;
+        }
         ret = lsquic_aes_aead_dec(key,
                            buf, *header_len,
                            nonce, 12,
@@ -3150,7 +3150,7 @@ lsquic_enc_session_decrypt (struct lsquic_enc_session *enc_session,
                         header_len, data_len, buf_out, max_out_len, out_len);
     else if (0 == verify_packet_hash(enc_session, version, buf, header_len,
                                      data_len, buf_out, max_out_len, out_len))
-        return ENC_LEV_CLEAR;
+        return ENC_LEV_INIT;
     else
         return -1;
 }
@@ -3247,7 +3247,7 @@ gquic_encrypt_buf (struct lsquic_enc_session *enc_session,
         memcpy(buf_out, header, header_len);
         memcpy(buf_out + header_len, md, HS_PKT_HASH_LENGTH);
         memcpy(buf_out + header_len + HS_PKT_HASH_LENGTH, data, data_len);
-        return ENC_LEV_CLEAR;
+        return ENC_LEV_INIT;
     }
     else
     {
@@ -3262,14 +3262,14 @@ gquic_encrypt_buf (struct lsquic_enc_session *enc_session,
             {
                 enc_session->server_start_use_final_key = 1;
             }
-            enc_level = ENC_LEV_INIT;
+            enc_level = ENC_LEV_HSK;
         }
         else
         {
             LSQ_DEBUG("lsquic_enc_session_encrypt using 'F' key...");
             key = enc_session->enc_ctx_f;
             memcpy(nonce, enc_session->enc_key_nonce_f, 4);
-            enc_level = ENC_LEV_FORW;
+            enc_level = ENC_LEV_APP;
         }
         path_id_packet_number = combine_path_id_pack_num(path_id, pack_num);
         memcpy(nonce + 4, &path_id_packet_number,
@@ -3964,9 +3964,9 @@ static const char *const gel2str[] =
 
 static const enum enc_level gel2el[] =
 {
-    [GEL_CLEAR] = ENC_LEV_CLEAR,
-    [GEL_EARLY] = ENC_LEV_EARLY,
-    [GEL_FORW]  = ENC_LEV_FORW,
+    [GEL_CLEAR] = ENC_LEV_INIT,
+    [GEL_EARLY] = ENC_LEV_0RTT,
+    [GEL_FORW]  = ENC_LEV_APP,
 };
 
 
@@ -4173,7 +4173,7 @@ gquic2_esf_decrypt_packet (enc_session_t *enc_session_p,
     lsquic_packno_t packno;
     size_t out_sz;
     enum dec_packin dec_packin;
-    const size_t dst_sz = packet_in->pi_data_sz;
+    const size_t dst_sz = packet_in->pi_data_sz - IQUIC_TAG_LEN;
     char errbuf[ERR_ERROR_STRING_BUF_LEN];
 
     dst = lsquic_mm_get_packet_in_buf(&enpub->enp_mm, dst_sz);
@@ -4264,11 +4264,10 @@ gquic2_esf_decrypt_packet (enc_session_t *enc_session_p,
     }
 
     /* Bits 2 and 3 are not set and don't need to be checked in gQUIC */
-
-    packet_in->pi_data_sz = packet_in->pi_header_sz + out_sz;
     if (packet_in->pi_flags & PI_OWN_DATA)
         lsquic_mm_put_packet_in_buf(&enpub->enp_mm, packet_in->pi_data,
                                                         packet_in->pi_data_sz);
+    packet_in->pi_data_sz = packet_in->pi_header_sz + out_sz;
     packet_in->pi_data = dst;
     packet_in->pi_flags |= PI_OWN_DATA | PI_DECRYPTED
                         | (gel2el[gel] << PIBIT_ENC_LEV_SHIFT);

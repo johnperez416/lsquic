@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -35,6 +35,7 @@ main (int argc, char **argv)
     printf("\n");
 
     lsquic_tg_destroy(tg);
+    lsquic_stock_shared_hash_destroy(enpub.enp_shi_ctx);
 
     return 0;
 }

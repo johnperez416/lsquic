@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * A duck quacks!  The server for the siduck protocol:
  *      https://tools.ietf.org/html/draft-pardue-quic-siduck-00
@@ -40,6 +40,7 @@ static void
 duck_server_on_conn_closed (lsquic_conn_t *conn)
 {
     LSQ_NOTICE("siduck connection closed");
+    lsquic_conn_set_ctx(conn, NULL);
 }
 
 

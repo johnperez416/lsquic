@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /* Tests adopted from Chromium windowed_filter_test.cc */
 // Copyright (c) 2016 The Chromium Authors. All rights reserved.
 
@@ -7,6 +7,10 @@
 #include <string.h>
 
 #include "lsquic_minmax.h"
+
+#ifdef _MSC_VER
+#include "vc_compat.h"
+#endif
 
 /* Convert milliseconds to lsquic_time_t, which is microseconds */
 #define ms(val) ((val) * 1000)

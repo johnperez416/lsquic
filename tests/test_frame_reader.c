@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -1134,8 +1134,9 @@ test_one_frt (const struct frame_reader_test *frt)
     stream.conn_pub = &conn_pub;
     conn_pub.lconn = &lconn;
 
-  top:
     lsquic_mm_init(&mm);
+
+  top:
     lshpack_dec_init(&hdec);
     memset(&input, 0, sizeof(input));
     memcpy(input.in_buf, frt->frt_buf, frt->frt_bufsz);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_stream.c -- stream processing
  */
@@ -583,6 +583,9 @@ decr_conn_cap (struct lsquic_stream *stream, size_t incr)
     {
         assert(stream->conn_pub->conn_cap.cc_sent >= incr);
         stream->conn_pub->conn_cap.cc_sent -= incr;
+        LSQ_DEBUG("decrease cc_sent by %zd to %"PRIu64, incr,
+                  stream->conn_pub->conn_cap.cc_sent);
+
     }
 }
 
@@ -780,6 +783,8 @@ lsquic_stream_call_on_close (lsquic_stream_t *stream)
         stream->stream_flags |= STREAM_ONCLOSE_DONE;
         SM_HISTORY_APPEND(stream, SHE_ONCLOSE_CALL);
         stream->stream_if->on_close(stream, stream->st_ctx);
+        if (stream->sm_qflags & SMQF_WANT_WRITE)
+            maybe_remove_from_write_q(stream, SMQF_WANT_WRITE);
     }
     else
         assert(0);
@@ -1095,12 +1100,11 @@ lsquic_stream_frame_in (lsquic_stream_t *stream, stream_frame_t *frame)
     LSQ_DEBUG("received stream frame, offset %"PRIu64", len %u; "
         "fin: %d", frame->data_frame.df_offset, frame->data_frame.df_size, !!frame->data_frame.df_fin);
 
+    rv = -1;
     if ((stream->sm_bflags & SMBF_USE_HEADERS)
                             && (stream->stream_flags & STREAM_HEAD_IN_FIN))
     {
-        lsquic_packet_in_put(stream->conn_pub->mm, frame->packet_in);
-        lsquic_malo_put(frame);
-        return -1;
+        goto release_packet_frame;
     }
 
     if (frame->data_frame.df_fin && (stream->sm_bflags & SMBF_IETF)
@@ -1112,7 +1116,7 @@ lsquic_stream_frame_in (lsquic_stream_t *stream, stream_frame_t *frame)
             "new final size %"PRIu64" from STREAM frame (id: %"PRIu64") does "
             "not match previous final size %"PRIu64, DF_END(frame),
             stream->id, stream->sm_fin_off);
-        return -1;
+        goto release_packet_frame;
     }
 
     got_next_offset = frame->data_frame.df_offset == stream->read_offset;
@@ -1123,7 +1127,6 @@ lsquic_stream_frame_in (lsquic_stream_t *stream, stream_frame_t *frame)
         /* Update maximum offset in the flow controller and check for flow
          * control violation:
          */
-        rv = -1;
         free_frame = !stream->data_in->di_if->di_own_on_ok;
         max_off = frame->data_frame.df_offset + frame->data_frame.df_size;
         if (0 != lsquic_stream_update_sfcw(stream, max_off))
@@ -1150,7 +1153,7 @@ lsquic_stream_frame_in (lsquic_stream_t *stream, stream_frame_t *frame)
     }
     else if (INS_FRAME_DUP == ins_frame)
     {
-        return 0;
+        rv = 0;
     }
     else if (INS_FRAME_OVERLAP == ins_frame)
     {
@@ -1160,15 +1163,15 @@ lsquic_stream_frame_in (lsquic_stream_t *stream, stream_frame_t *frame)
         if (stream->data_in)
             goto insert_frame;
         stream->data_in = lsquic_data_in_error_new();
-        lsquic_packet_in_put(stream->conn_pub->mm, frame->packet_in);
-        lsquic_malo_put(frame);
-        return -1;
     }
     else
     {
         assert(INS_FRAME_ERR == ins_frame);
-        return -1;
     }
+release_packet_frame:
+    lsquic_packet_in_put(stream->conn_pub->mm, frame->packet_in);
+    lsquic_malo_put(frame);
+    return rv;
 }
 
 
@@ -1333,6 +1336,15 @@ lsquic_stream_stop_sending_in (struct lsquic_stream *stream,
                                     && !(stream->sm_qflags & SMQF_SEND_RST))
         stream_reset(stream, 0, 0);
 
+    if (stream->sm_qflags & (SMQF_SEND_WUF | SMQF_SEND_BLOCKED \
+                             | SMQF_SEND_STOP_SENDING))
+    {
+        stream->sm_qflags &= ~(SMQF_SEND_WUF | SMQF_SEND_BLOCKED \
+                               | SMQF_SEND_STOP_SENDING);
+        if (!(stream->sm_qflags & SMQF_SENDING_FLAGS))
+            TAILQ_REMOVE(&stream->conn_pub->sending_streams, stream, next_send_stream);
+    }
+
     maybe_finish_stream(stream);
     maybe_schedule_call_on_close(stream);
 }
@@ -1438,7 +1450,12 @@ lsquic_stream_rst_frame_sent (lsquic_stream_t *stream)
     stream->sm_qflags &= ~SMQF_SEND_RST;
     if (!(stream->sm_qflags & SMQF_SENDING_FLAGS))
         TAILQ_REMOVE(&stream->conn_pub->sending_streams, stream, next_send_stream);
-    stream->stream_flags |= STREAM_RST_SENT;
+
+    /* [RFC9000 QUIC] Section 19.4. RESET_Frames
+     *  An endpoint uses a RESET_STREAM frame (type=0x04)
+     *  to abruptly terminate the sending part of a stream.
+     */
+    stream->stream_flags |= STREAM_RST_SENT|STREAM_U_WRITE_DONE;
     maybe_finish_stream(stream);
 }
 
@@ -1600,7 +1617,13 @@ stream_readf (struct lsquic_stream *stream,
                 errno = EBADMSG;
                 return -1;
             }
-            assert(stream->uh);
+
+            if (!stream->uh)
+            {
+                LSQ_DEBUG("cannot read: headers not available");
+                errno = EBADMSG;
+                return -1;
+            }
         }
         else
         {
@@ -1867,6 +1890,11 @@ stream_shutdown_write (lsquic_stream_t *stream)
             {
                 LSQ_DEBUG("turned on FIN flag in the yet-unsent STREAM frame");
                 stream->stream_flags |= STREAM_FIN_SENT;
+                if (stream->sm_qflags & SMQF_WANT_FLUSH)
+                {
+                    LSQ_DEBUG("turned off SMQF_WANT_FLUSH flag as FIN flag is turned on.");
+                    maybe_remove_from_write_q(stream, SMQF_WANT_FLUSH);
+                }
             }
             else
             {
@@ -2038,9 +2066,13 @@ static void
 maybe_put_onto_write_q (lsquic_stream_t *stream, enum stream_q_flags flag)
 {
     assert(SMQF_WRITE_Q_FLAGS & flag);
+    assert(!(stream->stream_flags & STREAM_ONCLOSE_DONE));
     if (!(stream->sm_qflags & SMQF_WRITE_Q_FLAGS))
+    {
+        LSQ_DEBUG("put on write queue");
         TAILQ_INSERT_TAIL(&stream->conn_pub->write_streams, stream,
                                                         next_write_stream);
+    }
     stream->sm_qflags |= flag;
 }
 
@@ -2282,8 +2314,9 @@ stream_dispatch_write_events_loop (lsquic_stream_t *stream)
     no_progress_count = 0;
     stream->stream_flags |= STREAM_LAST_WRITE_OK;
     while ((stream->sm_qflags & SMQF_WANT_WRITE)
-                && (stream->stream_flags & STREAM_LAST_WRITE_OK)
-                       && stream_writeable(stream))
+           && (stream->stream_flags & STREAM_LAST_WRITE_OK)
+           && !(stream->stream_flags & STREAM_ONCLOSE_DONE)
+           && stream_writeable(stream))
     {
         progress = stream_progress(stream);
 
@@ -2392,7 +2425,13 @@ lsquic_stream_dispatch_write_events (lsquic_stream_t *stream)
     unsigned short n_buffered;
     enum stream_q_flags q_flags;
 
-    if (!(stream->sm_qflags & SMQF_WRITE_Q_FLAGS))
+    LSQ_DEBUG("dispatch_write_events, sm_qflags: %d. stream_flags: %d, sm_bflags: %d, "
+                "max_send_off: %" PRIu64 ", tosend_off: %" PRIu64 ", sm_n_buffered: %u",
+              stream->sm_qflags, stream->stream_flags, stream->sm_bflags,
+              stream->max_send_off, stream->tosend_off, stream->sm_n_buffered);
+
+    if (!(stream->sm_qflags & SMQF_WRITE_Q_FLAGS)
+        || (stream->stream_flags & STREAM_FINISHED))
         return;
 
     q_flags = stream->sm_qflags & SMQF_WRITE_Q_FLAGS;
@@ -2405,6 +2444,7 @@ lsquic_stream_dispatch_write_events (lsquic_stream_t *stream)
     if (stream->sm_bflags & SMBF_RW_ONCE)
     {
         if ((stream->sm_qflags & SMQF_WANT_WRITE)
+            && !(stream->stream_flags & STREAM_ONCLOSE_DONE)
             && stream_writeable(stream))
         {
             on_write = select_on_write(stream);
@@ -2413,6 +2453,12 @@ lsquic_stream_dispatch_write_events (lsquic_stream_t *stream)
     }
     else
         stream_dispatch_write_events_loop(stream);
+
+    if ((stream->sm_qflags & SMQF_SEND_BLOCKED) &&
+        (stream->sm_bflags & SMBF_IETF))
+    {
+        lsquic_sendctl_gen_stream_blocked_frame(stream->conn_pub->send_ctl, stream);
+    }
 
     /* Progress means either flags or offsets changed: */
     progress = !((stream->sm_qflags & SMQF_WRITE_Q_FLAGS) == q_flags &&
@@ -2541,7 +2587,7 @@ lsquic_stream_flush_threshold (const struct lsquic_stream *stream,
         flags |= PO_LONGHEAD;
 
     packet_header_sz = lsquic_po_header_length(stream->conn_pub->lconn, flags,
-                            stream->conn_pub->path->np_dcid.len, HETY_NOT_SET);
+                            stream->conn_pub->path->np_dcid.len, HETY_SHORT);
     stream_header_sz = stream->sm_frame_header_sz(stream, data_sz);
     tag_len = stream->conn_pub->lconn->cn_esf_c->esf_tag_len;
 
@@ -2749,6 +2795,8 @@ incr_conn_cap (struct lsquic_stream *stream, size_t incr)
         stream->conn_pub->conn_cap.cc_sent += incr;
         assert(stream->conn_pub->conn_cap.cc_sent
                                     <= stream->conn_pub->conn_cap.cc_max);
+        LSQ_DEBUG("increase cc_sent by %zd to %"PRIu64, incr,
+               stream->conn_pub->conn_cap.cc_sent);
     }
 }
 
@@ -3308,7 +3356,7 @@ abort_connection (struct lsquic_stream *stream)
         TAILQ_INSERT_TAIL(&stream->conn_pub->service_streams, stream,
                                                 next_service_stream);
     stream->sm_qflags |= SMQF_ABORT_CONN;
-    LSQ_WARN("connection will be aborted");
+    LSQ_INFO("connection will be aborted");
     maybe_conn_to_tickable(stream);
 }
 
@@ -3419,6 +3467,11 @@ stream_write_to_packets (lsquic_stream_t *stream, struct lsquic_reader *reader,
                 if (use_framing && seen_ok)
                     maybe_close_varsize_hq_frame(stream);
                 stream->stream_flags |= STREAM_FIN_SENT;
+                if (stream->sm_qflags & SMQF_WANT_FLUSH)
+                {
+                    LSQ_DEBUG("turned off SMQF_WANT_FLUSH flag as FIN has been sent.");
+                    maybe_remove_from_write_q(stream, SMQF_WANT_FLUSH);
+                }
                 goto end;
             }
             else
@@ -3673,10 +3726,15 @@ stream_write (lsquic_stream_t *stream, struct lsquic_reader *reader,
         }
         while (nwritten < len
                         && stream->sm_n_buffered < stream->sm_n_allocated);
-        return nwritten;
     }
     else
-        return stream_write_to_packets(stream, reader, thresh, swo);
+        nwritten = stream_write_to_packets(stream, reader, thresh, swo);
+    if ((stream->sm_qflags & SMQF_SEND_BLOCKED) &&
+        (stream->sm_bflags & SMBF_IETF))
+    {
+        lsquic_sendctl_gen_stream_blocked_frame(stream->conn_pub->send_ctl, stream);
+    }
+    return nwritten;
 }
 
 
@@ -3964,8 +4022,7 @@ lsquic_stream_pwritev (struct lsquic_stream *stream,
                 bits = p[1] >> 6;
                 vint_write(p + 1, payload_sz - shortfall, bits, 1 << bits);
                 decr = shortfall;
-                if (stream->sm_bflags & SMBF_CONN_LIMITED)
-                    stream->conn_pub->conn_cap.cc_sent -= decr;
+                decr_conn_cap(stream, decr);
                 stream->sm_payload -= decr;
                 stream->tosend_off -= decr;
                 shortfall = 0;
@@ -3973,8 +4030,7 @@ lsquic_stream_pwritev (struct lsquic_stream *stream,
             else
             {
                 decr = payload_sz + 2 + (p[1] >> 6);
-                if (stream->sm_bflags & SMBF_CONN_LIMITED)
-                    stream->conn_pub->conn_cap.cc_sent -= decr;
+                decr_conn_cap(stream, decr);
                 stream->sm_payload -= payload_sz;
                 stream->tosend_off -= decr;
                 shortfall -= payload_sz;
@@ -3986,8 +4042,7 @@ lsquic_stream_pwritev (struct lsquic_stream *stream,
     else
     {
         const size_t shortfall = n_allocated - (size_t) nw;
-        if (stream->sm_bflags & SMBF_CONN_LIMITED)
-            stream->conn_pub->conn_cap.cc_sent -= shortfall;
+        decr_conn_cap(stream, shortfall);
         stream->sm_payload -= shortfall;
         stream->tosend_off -= shortfall;
     }
@@ -4354,14 +4409,16 @@ void
 lsquic_stream_acked (struct lsquic_stream *stream,
                                             enum quic_frame_type frame_type)
 {
-    assert(stream->n_unacked);
-    --stream->n_unacked;
-    LSQ_DEBUG("ACKed; n_unacked: %u", stream->n_unacked);
-    if (frame_type == QUIC_FRAME_RST_STREAM)
+    if (stream->n_unacked > 0)
     {
-        SM_HISTORY_APPEND(stream, SHE_RST_ACKED);
-        LSQ_DEBUG("RESET that we sent has been acked by peer");
-        stream->stream_flags |= STREAM_RST_ACKED;
+        --stream->n_unacked;
+        LSQ_DEBUG("ACKed; n_unacked: %u", stream->n_unacked);
+        if (frame_type == QUIC_FRAME_RST_STREAM)
+        {
+            SM_HISTORY_APPEND(stream, SHE_RST_ACKED);
+            LSQ_DEBUG("RESET that we sent has been acked by peer");
+            stream->stream_flags |= STREAM_RST_ACKED;
+        }
     }
     if (0 == stream->n_unacked)
     {

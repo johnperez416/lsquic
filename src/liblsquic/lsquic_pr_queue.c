@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_pr_queue.c -- packet request queue.
  */
@@ -37,7 +37,7 @@
 #include "lsquic_engine_public.h"
 #include "lsquic_sizes.h"
 #include "lsquic_handshake.h"
-#include "lsquic_xxhash.h"
+#include "lsquic_rapidhash.h"
 #include "lsquic_crand.h"
 
 #define LSQUIC_LOGGER_MODULE LSQLM_PRQ
@@ -84,6 +84,13 @@ struct evanescent_conn
                 + 1 /* DCIL */ + MAX_CID_LEN + 1 /* SCIL */ + MAX_CID_LEN + \
                 4 * N_LSQVER)
 
+/* [draft-ietf-quic-transport-22], Section 17.2.5 */
+#define IQUIC_RETRY_SIZE (1 /* Type */ + 4 /* Version */ + \
+                + 1 /* DCIL */ + MAX_CID_LEN + 1 /* SCIL */ + MAX_CID_LEN + \
+                + 1 /* ODCIL */ + MAX_CID_LEN + MAX_RETRY_TOKEN_LEN)
+
+/* GQUIC retry is dynamically size, this is a reasonable high bound */
+#define GQUIC_RETRY_SIZE 512
 
 struct pr_queue
 {
@@ -127,13 +134,13 @@ comp_reqs (const void *s1, const void *s2, size_t n)
 }
 
 
-static unsigned
-hash_req (const void *p, size_t len, unsigned seed)
+static uint64_t
+hash_req (const void *p, size_t len, uint64_t seed)
 {
     const struct packet_req *req;
 
     req = p;
-    return XXH32(req->pr_dcid.idbuf, req->pr_dcid.len, seed);
+    return rapidhash_withSeed(req->pr_dcid.idbuf, req->pr_dcid.len, seed);
 }
 
 
@@ -262,7 +269,7 @@ put_req (struct pr_queue *prq, struct packet_req *req)
 }
 
 
-static int
+int
 lsquic_prq_new_req_ext (struct pr_queue *prq, enum packet_req_type type,
     unsigned flags, enum lsquic_version version, unsigned short data_sz,
     const lsquic_cid_t *dcid, const lsquic_cid_t *scid, void *peer_ctx,
@@ -370,10 +377,11 @@ lsquic_prq_new_req (struct pr_queue *prq, enum packet_req_type type,
 static size_t
 max_bufsz (const struct pr_queue *prq)
 {
-    return  MAX(MAX(MAX(IQUIC_VERNEG_SIZE,
-                        IQUIC_MIN_SRST_SIZE),
-                        sizeof(prq->prq_verneg_g_buf)),
-                        sizeof(prq->prq_pubres_g_buf));
+    return  MAX(MAX(MAX(MAX(IQUIC_VERNEG_SIZE,
+                            IQUIC_RETRY_SIZE),
+                            IQUIC_MAX_SRST_SIZE),
+                            sizeof(prq->prq_verneg_g_buf)),
+                            sizeof(prq->prq_pubres_g_buf));
 }
 
 
@@ -479,6 +487,17 @@ lsquic_prq_next_conn (struct pr_queue *prq)
                     /* Flip SCID/DCID here: */ &req->pr_dcid, &req->pr_scid,
                     prq->prq_enpub->enp_settings.es_versions,
                     lsquic_crand_get_byte(prq->prq_enpub->enp_crand));
+        if (len > 0)
+            packet_out->po_data_sz = len;
+        else
+            packet_out->po_data_sz = 0;
+        break;
+    case (PACKET_REQ_RETRY << 29) | 0:
+        packet_out->po_flags |= PO_RETRY;
+        len = lsquic_iquic_gen_retry_pkt(packet_out->po_data, max_bufsz(prq),
+                    prq->prq_enpub, &req->pr_scid, &req->pr_dcid,
+                    req->pr_version, NP_PEER_SA(&req->pr_path),
+                    lsquic_crand_get_nybble(prq->prq_enpub->enp_crand));
         if (len > 0)
             packet_out->po_data_sz = len;
         else

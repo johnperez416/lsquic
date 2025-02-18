@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -12,10 +12,10 @@
 
 const char *const lsquic_enclev2str[] =
 {
-    [ENC_LEV_EARLY] = "early",
-    [ENC_LEV_CLEAR] = "clear",
-    [ENC_LEV_INIT]  = "initial",
-    [ENC_LEV_FORW]  = "forw-secure",
+    [ENC_LEV_0RTT] = "0RTT",
+    [ENC_LEV_INIT] = "INIT",
+    [ENC_LEV_HSK]  = "HSK",
+    [ENC_LEV_APP]  = "APP",
 };
 
 

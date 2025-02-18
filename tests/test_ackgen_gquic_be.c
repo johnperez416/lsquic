@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * Test how ACK frame is encoded.  Receive history module is tested by a
  * separate unit test.
@@ -21,7 +21,8 @@
 #include "lsquic_logger.h"
 #include "lsquic.h"
 
-static const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_043);
+//static const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_043); // will not work on MSVC
+#define pf ((const struct parse_funcs *const)select_pf_by_ver(LSQVER_043))
 
 static void
 test1 (void) /* Inverse of quic_framer_test.cc -- NewAckFrameOneAckBlock */

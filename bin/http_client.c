@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * http_client.c -- A simple HTTP/QUIC client
  */
@@ -348,7 +348,10 @@ http_client_on_conn_closed (lsquic_conn_t *conn)
     if (conn_h->client_ctx->hcc_flags & HCC_ABORT_ON_INCOMPLETE)
     {
         if (!(conn_h->client_ctx->hcc_flags & HCC_SEEN_FIN))
-            abort();
+        {
+            LSQ_INFO("abort incomplete connection");
+            exit(1);
+        }
     }
     --conn_h->client_ctx->hcc_n_open_conns;
 
@@ -373,6 +376,7 @@ http_client_on_conn_closed (lsquic_conn_t *conn)
     }
     event_active(cacos->event, 0, 0);
 
+    lsquic_conn_set_ctx(conn, NULL);
     free(conn_h);
 }
 
@@ -1010,6 +1014,7 @@ usage (const char *prog)
 "                 content-type: application/octet-stream and\n"
 "                 content-length\n"
 "   -K          Discard server response\n"
+"   -B          Header bypass\n"
 "   -I          Abort on incomplete reponse from server\n"
 "   -4          Prefer IPv4 when resolving hostname\n"
 "   -6          Prefer IPv6 when resolving hostname\n"
@@ -1328,6 +1333,7 @@ qif_client_on_conn_closed (lsquic_conn_t *conn)
     struct http_client_ctx *client_ctx = (void *) lsquic_conn_get_ctx(conn);
     LSQ_INFO("connection is closed: stop engine");
     prog_stop(client_ctx->prog);
+    lsquic_conn_set_ctx(conn, NULL);
 }
 
 

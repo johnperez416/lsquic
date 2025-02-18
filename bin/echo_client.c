@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * echo_client.c -- This is really a "line client:" it connects to QUIC server
  * and sends it stuff, line by line.  It works in tandem with echo_server.
@@ -65,6 +65,8 @@ echo_client_on_conn_closed (lsquic_conn_t *conn)
     lsquic_conn_ctx_t *conn_h = lsquic_conn_get_ctx(conn);
     LSQ_NOTICE("Connection closed");
     prog_stop(conn_h->client_ctx->prog);
+
+    lsquic_conn_set_ctx(conn, NULL);
     free(conn_h);
 }
 

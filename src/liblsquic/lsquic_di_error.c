@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_di_error.c -- A placeholder when things go wrong
  *
@@ -21,7 +21,7 @@ static const struct data_in *error_data_in_ptr;
 
 
 struct data_in *
-lsquic_data_in_error_new (struct lsquic_conn_public *conn_pub)
+lsquic_data_in_error_new (void)
 {
     return (struct data_in *) error_data_in_ptr;
 }

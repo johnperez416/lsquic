@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -52,7 +52,7 @@
 #include "lsquic_hq.h"
 #include "lsquic_data_in_if.h"
 
-static const struct parse_funcs *g_pf = select_pf_by_ver(LSQVER_043);
+static const struct parse_funcs *g_pf; // = select_pf_by_ver(LSQVER_043); // will not work on MSVC, moved init to main()
 
 static int g_use_crypto_ctor;
 
@@ -363,7 +363,7 @@ init_test_objs (struct test_objs *tobjs, unsigned initial_conn_window,
     LSCONN_INITIALIZE(&tobjs->lconn);
     tobjs->lconn.cn_pf = pf ? pf : g_pf;
     tobjs->lconn.cn_version = tobjs->lconn.cn_pf == &lsquic_parse_funcs_ietf_v1 ?
-        LSQVER_ID27 : LSQVER_043;
+        LSQVER_I001 : LSQVER_043;
     tobjs->lconn.cn_esf_c = &lsquic_enc_session_common_gquic_1;
     network_path.np_pack_size = 1370;
     tobjs->lconn.cn_if = &our_conn_if;
@@ -1295,6 +1295,7 @@ test_loc_RST_rem_FIN (struct test_objs *tobjs)
  *          Stream B is reset.  We should get a gapless sequence
  *          of packets 1, 2.
  */
+#ifndef NDEBUG
 static void
 test_gapless_elision_middle (struct test_objs *tobjs)
 {
@@ -1367,7 +1368,6 @@ test_gapless_elision_middle (struct test_objs *tobjs)
     lsquic_stream_destroy(streamA);
     lsquic_stream_destroy(streamB);
 }
-
 
 /* Test that when stream frame is elided and the packet is dropped,
  * the send controller produces a gapless sequence.
@@ -1456,6 +1456,7 @@ test_gapless_elision_beginning (struct test_objs *tobjs)
     lsquic_stream_destroy(streamA);
     lsquic_stream_destroy(streamB);
 }
+#endif
 
 
 
@@ -1599,8 +1600,10 @@ test_termination (void)
         { 1, 1, test_loc_data_rem_RST, },
         { 0, 1, test_loc_data_rem_SS, },
         { 1, 0, test_loc_RST_rem_FIN, },
+#ifndef NDEBUG
         { 1, 1, test_gapless_elision_beginning, },
         { 1, 1, test_gapless_elision_middle, },
+#endif
     }, *tf;
 
     for (tf = test_funcs; tf < test_funcs + sizeof(test_funcs) / sizeof(test_funcs[0]); ++tf)
@@ -1617,7 +1620,7 @@ test_termination (void)
         {
             init_test_ctl_settings(&g_ctl_settings);
             g_ctl_settings.tcs_schedule_stream_packets_immediately = 1;
-            init_test_objs(&tobjs, 0x4000, 0x4000, select_pf_by_ver(LSQVER_ID27));
+            init_test_objs(&tobjs, 0x4000, 0x4000, select_pf_by_ver(LSQVER_I001));
             tf->func(&tobjs);
             deinit_test_objs(&tobjs);
         }
@@ -2616,7 +2619,7 @@ test_changing_pack_size (void)
     enum lsquic_version versions_to_test[3] =
     {
         LSQVER_046,
-        LSQVER_ID27,
+        LSQVER_I001,
     };
 
     for (i = 0; i < 3; i++)
@@ -2998,10 +3001,11 @@ test_bad_packbits_guess_3 (void)
 static void
 test_resize_buffered (void)
 {
+#ifndef NDEBUG
     ssize_t nw;
     struct test_objs tobjs;
     struct lsquic_stream *streams[1];
-    const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_ID27);
+    const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_I001);
     char buf[0x10000];
     unsigned char buf_out[0x10000];
     int s, fin;
@@ -3046,6 +3050,7 @@ test_resize_buffered (void)
     lsquic_stream_destroy(streams[0]);
     deinit_test_objs(&tobjs);
     lsquic_send_ctl_set_max_bpq_count(10);
+#endif
 }
 
 
@@ -3059,10 +3064,11 @@ test_resize_buffered (void)
 static void
 test_resize_scheduled (void)
 {
+#ifndef NDEBUG // lsquic_send_ctl_set_max_bpq_count is debug only
     ssize_t nw;
     struct test_objs tobjs;
     struct lsquic_stream *streams[1];
-    const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_ID27);
+    const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_I001);
     char buf[0x10000];
     unsigned char buf_out[0x10000];
     int s, fin;
@@ -3107,6 +3113,7 @@ test_resize_scheduled (void)
     lsquic_stream_destroy(streams[0]);
     deinit_test_objs(&tobjs);
     lsquic_send_ctl_set_max_bpq_count(10);
+#endif
 }
 
 
@@ -3253,8 +3260,8 @@ test_packetization (int schedule_stream_packets_immediately, int dispatch_once,
 
     if (g_use_crypto_ctor)
     {
-        stream_ids[0] = ENC_LEV_CLEAR;
-        stream_ids[1] = ENC_LEV_INIT;
+        stream_ids[0] = ENC_LEV_INIT;
+        stream_ids[1] = ENC_LEV_HSK;
     }
     else
     {
@@ -3671,6 +3678,8 @@ main_test_packetization (void)
 int
 main (int argc, char **argv)
 {
+    g_pf = select_pf_by_ver(LSQVER_043);
+
     int opt;
 
     lsquic_global_init(LSQUIC_GLOBAL_SERVER);
@@ -3745,7 +3754,7 @@ main (int argc, char **argv)
 
     /* Redo some tests using crypto streams and frames */
     g_use_crypto_ctor = 1;
-    g_pf = select_pf_by_ver(LSQVER_ID27);
+    g_pf = select_pf_by_ver(LSQVER_I001);
     main_test_packetization();
 
     return 0;

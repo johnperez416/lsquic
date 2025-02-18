@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_hpi.c - implementation of (Extensible) HTTP Priority Iterator.
  */
@@ -111,6 +111,7 @@ lsquic_hpi_init (void *iter_p, struct lsquic_stream *first,
     else
         while (1)
         {
+            HPI_DEBUG("add stream %"PRIu64, stream->id);
             add_stream_to_hpi(iter, stream);
             ++count;
             if (stream == last)

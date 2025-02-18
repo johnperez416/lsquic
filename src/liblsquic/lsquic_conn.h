@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_conn.h -- Connection interface
  *
@@ -40,7 +40,7 @@ enum lsquic_conn_flags {
     LSCONN_HASHED         = (1 << 2),
     LSCONN_MINI           = (1 << 3),   /* This is a mini connection */
     LSCONN_IMMED_CLOSE    = (1 << 4),
-    LSCONN_UNUSED_5       = (1 << 5),
+    LSCONN_PROMOTE_FAIL   = (1 << 5),
     LSCONN_HANDSHAKE_DONE = (1 << 6),
     LSCONN_CLOSING        = (1 << 7),
     LSCONN_PEER_GOING_AWAY= (1 << 8),
@@ -60,6 +60,8 @@ enum lsquic_conn_flags {
     LSCONN_SERVER         = (1 <<22),
     LSCONN_IETF           = (1 <<23),
     LSCONN_RETRY_CONN     = (1 <<24),   /* This is a retry connection */
+    LSCONN_VER_UPDATED    = (1 <<25),
+    LSCONN_NO_BL          = (1 <<26),
 };
 
 /* A connection may have things to send and be closed at the same time.
@@ -68,6 +70,7 @@ enum tick_st {
     TICK_SEND    = (1 << 0),
     TICK_CLOSE   = (1 << 1),
     TICK_PROMOTE = (1 << 2), /* Promote mini connection to full connection */
+    TICK_RETRY   = (1 << 3), /* Send retry packet -- used by mini conns */
 };
 
 #define TICK_QUIET 0
@@ -252,9 +255,6 @@ struct conn_iface
     (*ci_record_addrs) (struct lsquic_conn *, void *peer_ctx,
         const struct sockaddr *local_sa, const struct sockaddr *peer_sa);
 
-    const lsquic_cid_t *
-    (*ci_get_log_cid) (const struct lsquic_conn *);
-
     /* Optional method.  Only used by the IETF client code. */
     void
     (*ci_drop_crypto_streams) (struct lsquic_conn *);
@@ -341,6 +341,7 @@ struct lsquic_conn
     const struct conn_iface     *cn_if;
     const struct parse_funcs    *cn_pf;
     struct attq_elem            *cn_attq_elem;
+    lsquic_cid_t                 cn_logid;
     lsquic_time_t                cn_last_sent;
     lsquic_time_t                cn_last_ticked;
     struct conn_cid_elem        *cn_cces;   /* At least one is available */
@@ -393,7 +394,7 @@ void
 lsquic_generate_cid_gquic (lsquic_cid_t *cid);
 
 void
-lsquic_generate_scid (void *, struct lsquic_conn *lconn, lsquic_cid_t *scid,
+lsquic_generate_scid (void *, struct lsquic_conn *lconn, uint8_t *scid,
                                                                 unsigned len);
 
 void

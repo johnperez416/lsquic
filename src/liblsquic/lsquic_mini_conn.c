@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_mini_conn.c -- Mini connection.
  *
@@ -225,6 +225,7 @@ lsquic_mini_conn_new (struct lsquic_engine_public *enp,
     mc->mc_conn.cn_esf_c = select_esf_common_by_ver(version);
     mc->mc_conn.cn_esf.g = select_esf_gquic_by_ver(version);
     mc->mc_conn.cn_cid = packet_in->pi_conn_id;
+    mc->mc_conn.cn_logid = packet_in->pi_conn_id;
     mc->mc_conn.cn_flags = LSCONN_MINI | LSCONN_SERVER;
     mc->mc_conn.cn_if = conn_iface;
     LSQ_DEBUG("created mini connection object");
@@ -1054,7 +1055,11 @@ continue_handshake (struct mini_conn *mc)
      */
     TAILQ_FOREACH(packet_in, &mc->mc_packets_in, pi_next)
     {
-        assert(n_hsk_chunks < sizeof(hsk_chunks) / sizeof(hsk_chunks[0]));
+        if (n_hsk_chunks >= sizeof(hsk_chunks) / sizeof(hsk_chunks[0])) {
+            LSQ_WARN("too many handshake packets");
+            return -1;
+        }
+
         if (0 == (packet_in->pi_flags & PI_HSK_STREAM))
             continue;
         s = parse_frame(packet_in->pi_data + packet_in->pi_hsk_stream,
@@ -1853,8 +1858,10 @@ mini_conn_ci_packet_in (struct lsquic_conn *lconn,
         process_deferred_packets(mc);
     }
     else
-        LSQ_DEBUG("won't defer more than %u packets: drop",
-                                                MINI_CONN_MAX_DEFERRED);
+    {
+        process_packet(mc, packet_in);
+        process_deferred_packets(mc);
+    }
 }
 
 

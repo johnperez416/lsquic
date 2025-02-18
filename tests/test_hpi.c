@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -335,6 +335,7 @@ main (int argc, char **argv)
     for (n = 0; n < sizeof(test_specs) / sizeof(test_specs[0]); ++n)
         run_test(&test_specs[n]);
 
+#ifndef NDEBUG
     lsquic_hpi_set_heap_test(LSQUIC_HPI_HEAP_TEST_STACK_OK);
     for (n = 0; n < sizeof(test_specs) / sizeof(test_specs[0]); ++n)
         run_test(&test_specs[n]);
@@ -346,6 +347,7 @@ main (int argc, char **argv)
     lsquic_hpi_set_heap_test(0);
     for (n = 0; n < sizeof(test_specs) / sizeof(test_specs[0]); ++n)
         run_test(&test_specs[n]);
+#endif
 
     return 0;
 }

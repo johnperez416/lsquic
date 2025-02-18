@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -191,6 +191,46 @@ test5 (void)
 
     rechist2str(&rechist, buf, sizeof(buf));
     assert(0 == strcmp(buf, "[12-3][1-1]"));
+
+    lsquic_rechist_cleanup(&rechist);
+}
+
+
+/* Regression test for bug where rechist ends up empty (rh_used == 0)
+ * with invalid head entry with a self-referential next, and
+ * lsquic_rechist_received would follow it because it didn't check rh_used.
+ */
+static void
+test6 (void)
+{
+    lsquic_rechist_t rechist;
+    char buf[256];
+    long int time = 12087061905875;
+    unsigned i;
+
+    lsquic_rechist_init(&rechist, 0, 0);
+
+    for (i = 0; i <= 3; i++)
+        lsquic_rechist_received(&rechist, i, (time += (i * 10)));
+    lsquic_rechist_stop_wait(&rechist, 2);
+
+    lsquic_rechist_received(&rechist, 4, (time += 10));
+
+    lsquic_rechist_stop_wait(&rechist, 3);
+
+    lsquic_rechist_received(&rechist, 5, (time += 10));
+
+    lsquic_rechist_stop_wait(&rechist, 3);
+
+    lsquic_rechist_received(&rechist, 6, (time += 10));
+
+    lsquic_rechist_stop_wait(&rechist, 9);
+
+    lsquic_rechist_received(&rechist, 7, (time += 10));
+    lsquic_rechist_received(&rechist, 8, (time += 10));
+    lsquic_rechist_received(&rechist, 9, (time += 10));
+
+    rechist2str(&rechist, buf, sizeof(buf));
 
     lsquic_rechist_cleanup(&rechist);
 }
@@ -393,6 +433,8 @@ main (void)
     test4();
 
     test5();
+    
+    test6();
 
     for (i = 0; i < 10; ++i)
         test_rand_sequence(i, 0);

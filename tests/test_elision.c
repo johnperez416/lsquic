@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -26,7 +26,8 @@
 #include "lsquic_logger.h"
 
 
-static const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_043);
+//static const struct parse_funcs *const pf = select_pf_by_ver(LSQVER_043); // will not work on MSVC
+#define pf ((const struct parse_funcs *const)select_pf_by_ver(LSQVER_043))
 
 static struct {
     unsigned char   buf[0x1000];

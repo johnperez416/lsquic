@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_logger.h -- logging functions and macros.
  *
@@ -23,6 +23,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+
+#include "lsquic_shared_support.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,7 +95,8 @@ enum lsquic_logger_module {
 
 /* Each module has its own log level.
  */
-extern enum lsq_log_level lsq_log_levels[N_LSQUIC_LOGGER_MODULES];
+
+LSQUIC_EXTERN enum lsq_log_level lsq_log_levels[N_LSQUIC_LOGGER_MODULES];
 
 extern const char *const lsqlm_to_str[N_LSQUIC_LOGGER_MODULES];
 

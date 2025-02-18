@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /* Test both generation and parsing of IETF ACK frames */
 
 #include <assert.h>
@@ -179,7 +179,7 @@ run_test (const struct test *test)
     size_t sz;
     unsigned char buf[0x1000];
 
-    pf = select_pf_by_ver(LSQVER_ID27);
+    pf = select_pf_by_ver(LSQVER_I001);
     if (!test->skip_gen)
     {
         rechist.acki = &test->acki;

@@ -1,8 +1,10 @@
-# Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE.
-cmake_minimum_required(VERSION 2.8)
+# Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE.
+cmake_minimum_required(VERSION 3.0...3.23)
 
 
-PROJECT(lsquic C)
+PROJECT(lsquic C CXX)
+
+SET(LIBS "-lstdc++")
 
 OPTION(LSQUIC_FIU "Use Fault Injection in Userspace (FIU)" OFF)
 OPTION(LSQUIC_BIN "Compile example binaries that use the library" ON)
@@ -12,14 +14,17 @@ OPTION(LSQUIC_DEVEL "Compile in development mode" OFF)
 
 INCLUDE(GNUInstallDirs)
 
+MESSAGE(STATUS "CMake v${CMAKE_VERSION}")
+
 IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # If using older glibc, need to link with -lrt.  See clock_getres(2).
-    EXECUTE_PROCESS(
-        COMMAND ${PROJECT_SOURCE_DIR}/print-glibc-version.sh ${CMAKE_C_COMPILER}
-        OUTPUT_VARIABLE GLIBC_VERSION)
-    IF(NOT GLIBC_VERSION EQUAL "" AND GLIBC_VERSION VERSION_LESS 2.17)
-        SET(LIBS ${LIBS} rt)
-    ENDIF()
+    include(CheckSymbolExists)
+    check_symbol_exists(clock_getres "time.h" HAS_clock_getres_WITHOUT_LIBRT)
+
+    if(NOT HAS_clock_getres_WITHOUT_LIBRT)
+        find_library(RT_LIBRARY rt)
+        set(NEED_LIBRT_FOR_clock_getres ON)
+    endif()
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "Android")
     # for android-ndk >= r19b
     set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY "BOTH")
@@ -103,6 +108,7 @@ SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4245")	# conversion from 'int' to 'unsi
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4267")	# integer conversion
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4214")	# nonstandard extension used: bit field types other than int
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4295")	# array is too small to include a terminating null character
+SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4324")	# structure was padded due to alignment specifier
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4334")	# result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4456")	# hide previous local declaration
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4459")	# hide global declaration
@@ -110,6 +116,9 @@ SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4706")	# assignment within conditional 
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4090")	# different 'const' qualifier (TODO: debug ls-sfparser.c)
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} /wd4305")	# truncation from double to float
 SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} -W4 -WX -Zi -DWIN32_LEAN_AND_MEAN -DNOMINMAX -D_CRT_SECURE_NO_WARNINGS -I${CMAKE_CURRENT_SOURCE_DIR}/wincompat")
+IF(LSQUIC_SHARED_LIB)
+    SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} -DLSQUIC_SHARED_LIB")
+ENDIF()
 IF(CMAKE_BUILD_TYPE STREQUAL "Debug")
     SET(MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} -Od")
     #SET (MY_CMAKE_FLAGS "${MY_CMAKE_FLAGS} -DFIU_ENABLE=1")
@@ -131,10 +140,19 @@ IF(NOT PERL_FOUND)
     MESSAGE(FATAL_ERROR "Perl not found -- need it to generate source code")
 ENDIF()
 
-IF(LSQUIC_SHARED_LIB)
-    SET(LIB_SUFFIX .so)
+IF (MSVC)
+    IF(LSQUIC_SHARED_LIB)
+        set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS YES CACHE BOOL "Export all symbols")
+        SET(LIB_SUFFIX .dll)
+    ELSE()
+        SET(LIB_SUFFIX .lib)
+    ENDIF()
 ELSE()
-    SET(LIB_SUFFIX .a)
+    IF(LSQUIC_SHARED_LIB)
+        SET(LIB_SUFFIX .so)
+    ELSE()
+        SET(LIB_SUFFIX .a)
+    ENDIF()
 ENDIF()
 
 IF (NOT DEFINED BORINGSSL_INCLUDE AND DEFINED BORINGSSL_DIR)
@@ -153,7 +171,7 @@ ELSE()
 ENDIF()
 
 IF (NOT DEFINED BORINGSSL_LIB AND DEFINED BORINGSSL_DIR)
-    FOREACH(LIB_NAME ssl crypto decrepit)
+    FOREACH(LIB_NAME ssl crypto)
         IF (CMAKE_SYSTEM_NAME STREQUAL Windows)
             FIND_LIBRARY(BORINGSSL_LIB_${LIB_NAME}
                 NAMES ${LIB_NAME}
@@ -176,24 +194,33 @@ IF (NOT DEFINED BORINGSSL_LIB AND DEFINED BORINGSSL_DIR)
 ELSE()
 
 
-    FOREACH(LIB_NAME ssl crypto decrepit)
-        IF (CMAKE_SYSTEM_NAME STREQUAL Windows)
-            FIND_LIBRARY(BORINGSSL_LIB_${LIB_NAME}
-                NAMES ${LIB_NAME}
-                PATHS ${BORINGSSL_LIB}
-                PATH_SUFFIXES Debug Release MinSizeRel RelWithDebInfo
-                NO_DEFAULT_PATH)
-        ELSE()
-            FIND_LIBRARY(BORINGSSL_LIB_${LIB_NAME}
-                NAMES lib${LIB_NAME}${LIB_SUFFIX}
-                PATHS ${BORINGSSL_LIB}
-                PATH_SUFFIXES ${LIB_NAME}
-                NO_DEFAULT_PATH)
+    FOREACH(LIB_NAME ssl crypto)
+        # If BORINGSSL_LIB is defined, try find each lib. Otherwise, user should define BORINGSSL_LIB_ssl,
+        # BORINGSSL_LIB_crypto and so on explicitly. For example, including boringssl and lsquic both via
+        # add_subdirectory:
+        #   add_subdirectory(third_party/boringssl)
+        #   set(BORINGSSL_LIB_ssl ssl)
+        #   set(BORINGSSL_LIB_crypto crypto)
+        #   add_subdirectory(third_party/lsquic)
+        IF (DEFINED BORINGSSL_LIB)
+            IF (CMAKE_SYSTEM_NAME STREQUAL Windows)
+                FIND_LIBRARY(BORINGSSL_LIB_${LIB_NAME}
+                    NAMES ${LIB_NAME}
+                    PATHS ${BORINGSSL_LIB}
+                    PATH_SUFFIXES Debug Release MinSizeRel RelWithDebInfo
+                    NO_DEFAULT_PATH)
+            ELSE()
+                FIND_LIBRARY(BORINGSSL_LIB_${LIB_NAME}
+                    NAMES lib${LIB_NAME}${LIB_SUFFIX}
+                    PATHS ${BORINGSSL_LIB}
+                    PATH_SUFFIXES ${LIB_NAME}
+                    NO_DEFAULT_PATH)
+            ENDIF()
         ENDIF()
         IF(BORINGSSL_LIB_${LIB_NAME})
-            MESSAGE(STATUS "Found ${BORINGSSL_LIB} library: ${BORINGSSL_LIB_${LIB_NAME}}")
+            MESSAGE(STATUS "Found ${LIB_NAME} library: ${BORINGSSL_LIB_${LIB_NAME}}")
         ELSE()
-            MESSAGE(STATUS "${BORINGSSL_LIB} library not found")
+            MESSAGE(FATAL_ERROR "BORINGSSL_LIB_${LIB_NAME} library not found")
         ENDIF()
     ENDFOREACH()
 
@@ -205,6 +232,21 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     # Find libevent on FreeBSD:
     include_directories( /usr/local/include )
     link_directories( /usr/local/lib )
+ENDIF()
+
+IF (CMAKE_SYSTEM_NAME STREQUAL Windows AND LSQUIC_TESTS AND LSQUIC_BIN)
+    FIND_PATH(GETOPT_INCLUDE_DIR NAMES getopt.h)
+    IF (GETOPT_INCLUDE_DIR)
+        INCLUDE_DIRECTORIES(${GETOPT_INCLUDE_DIR})
+    ELSE()
+        MESSAGE(FATAL_ERROR "getopt.h was not found")
+    ENDIF()
+        FIND_LIBRARY(GETOPT_LIB getopt)
+    IF(GETOPT_LIB)
+        MESSAGE(STATUS "Found getopt: ${GETOPT_LIB}")
+    ELSE()
+        MESSAGE(STATUS "getopt not found")
+    ENDIF()
 ENDIF()
 
 # Find zlib and libevent header files and library files
@@ -232,7 +274,8 @@ ENDIF()
 SET(LIBS lsquic ${BORINGSSL_LIB_ssl} ${BORINGSSL_LIB_crypto} ${ZLIB_LIB} ${LIBS})
 
 IF (LSQUIC_BIN)
-    FIND_PATH(EVENT_INCLUDE_DIR NAMES event2/event.h)
+    FIND_PATH(EVENT_INCLUDE_DIR NAMES event2/event.h
+              PATHS ${PROJECT_SOURCE_DIR}/../third-party/include)
     IF (EVENT_INCLUDE_DIR)
         INCLUDE_DIRECTORIES(${EVENT_INCLUDE_DIR})
     ELSE()
@@ -245,7 +288,8 @@ IF (LSQUIC_BIN)
     IF (CMAKE_SYSTEM_NAME STREQUAL Windows)
         FIND_LIBRARY(EVENT_LIB event)
     ELSE()
-        FIND_LIBRARY(EVENT_LIB libevent${LIB_SUFFIX})
+        FIND_LIBRARY(EVENT_LIB libevent${LIB_SUFFIX}
+                    PATHS ${PROJECT_SOURCE_DIR}/../third-party/lib)
         IF(NOT EVENT_LIB)
             FIND_LIBRARY(EVENT_LIB libevent.so)
         ENDIF()
@@ -297,3 +341,10 @@ INSTALL(FILES
     include/lsxpack_header.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/lsquic
 )
+
+if(WIN32)
+    install(FILES
+        wincompat/vc_compat.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/lsquic
+    )
+endif()

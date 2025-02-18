@@ -1,10 +1,12 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
-
+#ifdef _MSC_VER
+#include "vc_compat.h"
+#endif
 #include "lsquic_int_types.h"
 #include "lsquic_senhist.h"
 #include "lsquic_types.h"

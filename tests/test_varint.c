@@ -1,9 +1,13 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "lsquic_varint.h"
+
+#ifdef _MSC_VER
+#include "vc_compat.h"
+#endif
 
 #define MAX_INPUT_SZ 8
 

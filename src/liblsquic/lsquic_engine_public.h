@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_engine_public.h -- Engine's "public interface"
  *
@@ -49,7 +49,7 @@ struct lsquic_engine_public {
     const struct lsquic_hset_if    *enp_hsi_if;
     void                           *enp_hsi_ctx;
     void                          (*enp_generate_scid)(void *,
-                        struct lsquic_conn *, struct lsquic_cid *, unsigned);
+                        struct lsquic_conn *, uint8_t *, unsigned);
     void                           *enp_gen_scid_ctx;
     int                           (*enp_verify_cert)(void *verify_ctx,
                                             struct stack_st_X509 *chain);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_full_conn.c -- A "full" connection object has full functionality
  */
@@ -617,6 +617,7 @@ new_conn_common (lsquic_cid_t cid, struct lsquic_engine_public *enpub,
     conn->fc_conn.cn_cces = conn->fc_cces;
     conn->fc_conn.cn_cces_mask = 1;
     conn->fc_conn.cn_cid = cid;
+    conn->fc_conn.cn_logid = cid;
     conn->fc_flags = flags;
     conn->fc_enpub = enpub;
     conn->fc_pub.enpub = enpub;
@@ -903,12 +904,12 @@ lsquic_gquic_full_conn_server_new (struct lsquic_engine_public *enpub,
 
     for (n = 0; received; ++n)
     {
-        if (received & (1U << n))
+        if (received & (1ULL << n))
             /* Setting `now' to zero is OK here, as we should have had at
              * least one other packet above.
              */
             lsquic_rechist_received(&conn->fc_rechist, n + 1, 0);
-        received &= ~(1U << n);
+        received &= ~(1ULL << n);
     }
 
     /* Mini connection sends out packets 1, 2, 3... and so on.  It deletes
@@ -1608,7 +1609,7 @@ process_stream_frame (struct full_conn *conn, lsquic_packet_in_t *packet_in,
 
     enc_level = lsquic_packet_in_enc_level(packet_in);
     if (!is_handshake_stream_id(conn, stream_frame->stream_id)
-        && enc_level == ENC_LEV_CLEAR)
+        && enc_level == ENC_LEV_INIT)
     {
         lsquic_malo_put(stream_frame);
         ABORT_ERROR("received unencrypted data for stream %"PRIu64,
@@ -3410,6 +3411,8 @@ full_conn_ci_tick (lsquic_conn_t *lconn, lsquic_time_t now)
 #if LSQUIC_CONN_STATS
     ++conn->fc_stats.n_ticks;
 #endif
+
+    CLOSE_IF_NECESSARY();
 
     if (LSQ_LOG_ENABLED(LSQ_LOG_DEBUG)
         && conn->fc_mem_logged_last + 1000000 <= now)

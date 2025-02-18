@@ -1,4 +1,4 @@
-# Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE.
+# Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE.
 SET(lsquic_STAT_SRCS
     ls-qpack/lsqpack.c
     lsquic_adaptive_cc.c
@@ -107,28 +107,56 @@ ELSE()
 ENDIF()
 
 ADD_CUSTOM_COMMAND(
-    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/lsquic_versions_to_string.c
-    COMMAND ${PERL}
-    ARGS ${CMAKE_CURRENT_SOURCE_DIR}/gen-verstrs.pl ${CMAKE_CURRENT_SOURCE_DIR}/../../include/lsquic.h ${CMAKE_CURRENT_SOURCE_DIR}/lsquic_versions_to_string.c
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lsquic_versions_to_string.c
+    COMMAND ${PERL_EXECUTABLE}
+    ARGS ${CMAKE_CURRENT_SOURCE_DIR}/gen-verstrs.pl ${CMAKE_CURRENT_SOURCE_DIR}/../../include/lsquic.h ${CMAKE_CURRENT_BINARY_DIR}/lsquic_versions_to_string.c
     DEPENDS ./gen-verstrs.pl ${CMAKE_CURRENT_SOURCE_DIR}/../../include/lsquic.h
 )
-SET(lsquic_STAT_SRCS ${lsquic_STAT_SRCS} lsquic_versions_to_string.c)
+SET(lsquic_STAT_SRCS ${lsquic_STAT_SRCS} ${CMAKE_CURRENT_BINARY_DIR}/lsquic_versions_to_string.c)
 SET(lsquic_STAT_SRCS ${lsquic_STAT_SRCS} ls-sfparser.c)
 
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DXXH_HEADER_NAME=\\\"lsquic_xxhash.h\\\"")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DLSQPACK_ENC_LOGGER_HEADER=\\\"lsquic_qpack_enc_logger.h\\\"")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DLSQPACK_DEC_LOGGER_HEADER=\\\"lsquic_qpack_dec_logger.h\\\"")
 
+if(NEED_LIBRT_FOR_clock_getres)
+    target_link_libraries(lsquic PRIVATE ${RT_LIBRARY})
+endif()
+
 IF(LSQUIC_SHARED_LIB)
-  add_library(lsquic SHARED ${lsquic_STAT_SRCS} )
+  add_library(lsquic SHARED ${lsquic_STAT_SRCS})
   TARGET_LINK_LIBRARIES(lsquic PRIVATE ${BORINGSSL_LIB_ssl} ${BORINGSSL_LIB_crypto} ${ZLIB_LIB})
+  IF(MSVC)
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DLSQUIC_EXPORTS")
+  TARGET_LINK_LIBRARIES(lsquic PRIVATE ws2_32.lib)
+  ENDIF()
 ELSE()
   add_library(lsquic STATIC ${lsquic_STAT_SRCS})
 ENDIF()
+
+target_include_directories(
+    lsquic PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/lsquic>)
 
 install(TARGETS lsquic
     EXPORT lsquic-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    lsquic-config.cmake ${CMAKE_CURRENT_BINARY_DIR}/lsquic-config.cmake
+    INSTALL_DESTINATION share/lsquic
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO
+    PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
+
+install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/lsquic-config.cmake
+    DESTINATION share/lsquic)
+
+install(
+    EXPORT lsquic-targets
+    DESTINATION share/lsquic
+    NAMESPACE lsquic::
+    FILE lsquic-targets.cmake)
 

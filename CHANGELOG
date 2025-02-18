@@ -1,3 +1,138 @@
+2025-02-18
+    - 4.2.0
+    - Address hash flood attack for lsquic_hash by switching to rapidhash with stronger random seed.
+    - Fix packet packing problem for post-quantum support.
+    - Add configuration to control version negotiation and amplification factor.
+
+2024-12-16
+    - 4.1.0
+    - Update to ls-qpack v2.6.1 to fix a infinite loop.
+    - Add lsquic_engine_get_conns_count() API
+    - Updated ea_generate_scid() API
+    - Fix retry packet SCID generation to follow engine API.
+    - Fix QUICv2 header protection key when retry packet is involved.
+
+2024-09-23
+    - 4.0.12
+    - Fix stream WANT_WRITE flag that causes busy looping.
+
+2024-09-09
+    - 4.0.11
+    - Fix assert failure related to splitting a large packet.
+
+2024-07-02
+    - 4.0.10
+    - Fix server initial packet padding.
+    - Fix a handshake failure corner case due to packet corruption.
+
+2024-06-12
+    - 4.0.9
+    - Fix bpq_count (issue #504).
+
+2024-03-12
+    - 4.0.8
+    - Fix RETIRE_CONNECTION_ID frame abuse.
+    - Fix some assert failures.
+
+2024-02-28
+    - 4.0.7
+    - Fix overly strict 0-RTT packet DCID validation.
+    - Update docker build.
+
+2024-02-23
+    - 4.0.6
+    - Fix ACK handling.
+    - Do not apply congestion control to CONNECTION_CLOSE frame.
+
+2024-02-07
+    - 4.0.5
+    - Fix CPU spinning due to STREAM_BLOCKED frame.
+
+2024-01-08
+    - 4.0.4
+    - Fix DCID validation.
+    - Fix CPU spinning due to pending STREAM_BLOCKED frame.
+
+2023-12-25
+    - 4.0.3
+    - Fix session resumption bug introduced in 4.0.2.
+
+2023-12-19
+    - 4.0.2
+    - More strict RFC compliance.
+    - Minimize packet generated when send STREAM_BLOCKED frame
+    - Fix memory management bugs.
+    - Fix memory leak in unit tests.
+
+2023-05-14
+    - 4.0.1
+    - Fix send_ctl bug.
+    - Make logid consistent
+    - Reduce memory usage for storing CIDs.
+
+2023-03-14
+    - 4.0.0
+    - Add support for QUICv2 (RFC9369).
+    - Add support for version negotiation (RFC9368).
+    - Retry packet for address validation.
+    - Improve handshake under high packet loss/corruption.
+    - Improve QUIC interop results
+
+2023-01-26
+    - 3.3.1
+    - Fix blocked header encoding stream due to connection flow control congestion.
+    - Fix qeh_write_headers bug for Windows.
+    - Fix corner case for packet resizing.
+
+2023-01-04
+    - 3.3.0
+    - Improve path validation logic to avoid sending padded packet to unverified
+      peer, follow 3X anti-amplification rule.
+    - Optimize application callback when STOP_SENDING frame is received.
+    - Improve new connection callback logic.
+    - Improve handling of a closed connection.
+    - Update BoringSSL to the most recent version.
+    - Fix memory leaks in gquic handshake and packet handling.
+    - Update ls-qpack to 2.5.1, ls-hpack to 2.3.1 to address compiler warnings
+
+2022-10-20
+    - 3.2.0
+    - Update ls-qpack to 2.5.0 to address a decoder bug
+    - Assertion failure if poison packet was acked
+    - Fix packet_in pool memory leak
+
+2022-08-16
+    - 3.1.2
+    - Update ls-qpack to 2.4.0 to address a use-after-free bug
+    - Address a few corner cases that trigger assert failures.
+    - Properly handle unexpected large packet for gQUIC.
+    - Fix memory leak in shared hash interface
+    - Fix IPv6 MTU detection
+    - Fix wrong size used in packet regeneration.
+
+2022-05-13
+    - 3.1.1
+    - Fix memory leak in processing stream frames (isse #368)
+
+2022-05-06
+    - 3.1.0
+    - Better handling of transport parameter max_table_capcity < 32
+    - Fix NULL pointer dereference in handshake
+    - Fix 0-RTT transport parameter validation (issue #367)
+    - Remove unnecessary debug log to avoid NULL pointer dereference
+    - Tick connection on datagram write (pull #314)
+    - Do not dispatch write event for FINISHED stream
+    - Tweaks for CMake configuration (pull #354 #369 #370 #373 #374)
+    - Update ls-qpack to 2.3.0
+
+2022-01-10
+    - 3.0.4
+    - Fix overly strict assert()
+    - Do not reset path MTU due to three lost_mtu_probe
+    - Fix handshake failure due to too many realy data
+    - Better build support for Windows platform
+    - Update ls-qpack to 2.2.3
+
 2021-09-30
     - 3.0.3
     - Generate ACK for DATAGRAM frame while avoid RETX (issue #312 #325).

@@ -1,4 +1,6 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2023 LiteSpeed Technologies Inc.  See LICENSE. */
+
 #ifndef __LSQUIC_H__
 #define __LSQUIC_H__
 
@@ -23,9 +25,9 @@ struct sockaddr;
 extern "C" {
 #endif
 
-#define LSQUIC_MAJOR_VERSION 3
-#define LSQUIC_MINOR_VERSION 0
-#define LSQUIC_PATCH_VERSION 3
+#define LSQUIC_MAJOR_VERSION 4
+#define LSQUIC_MINOR_VERSION 2
+#define LSQUIC_PATCH_VERSION 0
 
 /**
  * Engine flags:
@@ -80,12 +82,23 @@ enum lsquic_version
     LSQVER_I001,
 
     /**
-     * Special version to trigger version negotiation.
-     * [draft-ietf-quic-transport-11], Section 3.
+     * IETF QUIC v2.
      */
-    LSQVER_VERNEG,
+    LSQVER_I002,
 
-    N_LSQVER
+    /**
+     * Reserved version to trigger version negotiation.
+     * [rfc9000], Section 15.
+     */
+    LSQVER_RESVED,
+
+    N_LSQVER,
+
+    /**
+     *  The version 0x00000000 is reserved to represent version negotiation.
+     * [rfc9000], Section 15.
+     */
+    LSQVER_VERNEG
 };
 
 /**
@@ -101,19 +114,19 @@ enum lsquic_version
 #define LSQUIC_FORCED_TCID0_VERSIONS ((1 << LSQVER_046)|(1 << LSQVER_050))
 
 #define LSQUIC_EXPERIMENTAL_VERSIONS ( \
-                            (1 << LSQVER_VERNEG))
+                            (1 << LSQVER_RESVED))
 
 #define LSQUIC_DEPRECATED_VERSIONS ((1 << LSQVER_ID27))
 
 #define LSQUIC_GQUIC_HEADER_VERSIONS (1 << LSQVER_043)
 
 #define LSQUIC_IETF_VERSIONS ((1 << LSQVER_ID27) \
-                          | (1 << LSQVER_ID29) \
-                          | (1 << LSQVER_I001) | (1 << LSQVER_VERNEG))
+                          | (1 << LSQVER_ID29) | (1 << LSQVER_I001) \
+                          | (1 << LSQVER_I002) | (1 << LSQVER_RESVED))
 
 #define LSQUIC_IETF_DRAFT_VERSIONS ((1 << LSQVER_ID27) \
                                   | (1 << LSQVER_ID29) \
-                                  | (1 << LSQVER_VERNEG))
+                                  | (1 << LSQVER_RESVED))
 
 enum lsquic_hsk_status
 {
@@ -304,6 +317,10 @@ typedef struct ssl_ctx_st * (*lsquic_lookup_cert_f)(
 
 #define LSQUIC_DF_STTL               86400
 #define LSQUIC_DF_MAX_INCHOATE     (1 * 1000 * 1000)
+
+#define LSQUIC_DF_SUPPORT_SREJ_SERVER  1
+#define LSQUIC_DF_SUPPORT_SREJ_CLIENT  0
+
 /** Do not use NSTP by default */
 #define LSQUIC_DF_SUPPORT_NSTP     0
 /** TODO: IETF QUIC clients do not support push */
@@ -317,6 +334,12 @@ typedef struct ssl_ctx_st * (*lsquic_lookup_cert_f)(
  * packets that specify unknown connections.
  */
 #define LSQUIC_DF_SEND_PRST        0
+
+/**
+ * By default, LSQUIC will send Version Negotiation packets in response to
+ * packets that specify unknown versions.
+ */
+#define LSQUIC_DF_SEND_VERNEG      1
 
 /** By default, infinite loop checks are turned on */
 #define LSQUIC_DF_PROGRESS_CHECK    1000
@@ -353,6 +376,9 @@ typedef struct ssl_ctx_st * (*lsquic_lookup_cert_f)(
 /** Allow migration by default */
 #define LSQUIC_DF_ALLOW_MIGRATION 1
 
+/** Default retry token duration. */    /* Do not set this value to zero. */
+#define LSQUIC_DF_RETRY_TOKEN_DURATION 10
+
 /** Use QL loss bits by default */
 #define LSQUIC_DF_QL_BITS 2
 
@@ -377,6 +403,9 @@ typedef struct ssl_ctx_st * (*lsquic_lookup_cert_f)(
 
 /** Turn on timestamp extension by default */
 #define LSQUIC_DF_TIMESTAMPS 1
+
+/** default anti-amplification factor is 3 */
+#define LSQUIC_DF_AMP_FACTOR 3
 
 /* Use Adaptive CC by default */
 #define LSQUIC_DF_CC_ALGO 3
@@ -541,6 +570,17 @@ struct lsquic_engine_settings {
      * only applicable in server mode.
      */
     unsigned        es_max_inchoate;
+
+    /**
+     * Support SREJ: for client side, this means supporting server's SREJ
+     * responses (this does not work yet) and for server side, this means
+     * generating SREJ instead of REJ when appropriate.
+     *
+     * For IETF QUIC, this sending stateless retries when appropriate.
+     * The IETF client always supports stateless retries and knows how to
+     * handle them.
+     */
+    int             es_support_srej;
 
     /**
      * Setting this value to 0 means that
@@ -862,6 +902,13 @@ struct lsquic_engine_settings {
     int             es_allow_migration;
 
     /**
+     * Amount of time, in seconds, after which the server token included in
+     * a stateless retry expires.  If set to zero, the default value is
+     * used, which is @ref LSQUIC_DF_RETRY_TOKEN_DURATION
+     */
+     unsigned       es_retry_token_duration;
+
+    /**
      * Use QL loss bits.  Allowed values are:
      *  0:  Do not use loss bits
      *  1:  Allow loss bits
@@ -1054,6 +1101,20 @@ struct lsquic_engine_settings {
      * Default value is @ref LSQUIC_DF_CHECK_TP_SANITY
      */
     int             es_check_tp_sanity;
+
+    /**
+     * This is the anti-amplification factor when peer address has not be verified.
+     *
+     * Default value is @ref LSQUIC_DF_AMP_FACTOR
+     */
+    int             es_amp_factor;
+
+    /**
+     * If set to true value, the library will send Version Negotiation packets
+     * in response to incoming packets with unsupported versions.
+     * The default is @ref LSQUIC_DF_SEND_VERNEG.
+     */
+    int             es_send_verneg;
 };
 
 /* Initialize `settings' to default values */
@@ -1339,10 +1400,16 @@ struct lsquic_engine_api
      * Optional interface to control the creation of connection IDs
      */
     void                               (*ea_generate_scid)(void *ctx,
-                                lsquic_conn_t *, lsquic_cid_t *, unsigned);
+                                lsquic_conn_t *, uint8_t *, unsigned);
     /** Passed to ea_generate_scid() */
     void                                *ea_gen_scid_ctx;
 };
+
+/**
+ * Returns current number of connections processed by the engine. Both mini and full connections included
+ */
+unsigned
+lsquic_engine_get_conns_count (lsquic_engine_t *engine);
 
 /**
  * Create new engine.
@@ -2041,7 +2108,7 @@ lsquic_cid_from_packet (const unsigned char *, size_t bufsz, lsquic_cid_t *cid);
  */
 int
 lsquic_dcid_from_packet (const unsigned char *, size_t bufsz,
-                                unsigned server_cid_len, unsigned *cid_len);
+                                unsigned server_cid_len, uint8_t *cid_len);
 
 /**
  * Returns true if there are connections to be processed, false otherwise.

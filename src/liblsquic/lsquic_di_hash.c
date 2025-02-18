@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_di_hash.c -- Copy incoming data into a hash
  *
@@ -438,9 +438,12 @@ hash_di_insert_frame (struct data_in *data_in,
     ins = lsquic_data_in_hash_insert_data_frame(data_in, data_frame,
                                                                 read_offset);
     assert(ins != INS_FRAME_OVERLAP);
-    lsquic_packet_in_put(hdi->hdi_conn_pub->mm, new_frame->packet_in);
-    if (ins != INS_FRAME_OK)
-        lsquic_malo_put(new_frame);
+    /* NOTE: Only release packet and frame for INS_FRAME_OK,
+     *        other cases are handled by caller */
+    if (ins == INS_FRAME_OK)
+    {
+        lsquic_packet_in_put(hdi->hdi_conn_pub->mm, new_frame->packet_in);
+    }
     return ins;
 }
 

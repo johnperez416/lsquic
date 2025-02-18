@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 /*
  * lsquic_rechist.h -- History of received packets.
  *
@@ -39,9 +39,6 @@ struct lsquic_rechist {
         struct lsquic_packno_range      range;
         unsigned                        next;
     }                               rh_iter;
-#if LSQUIC_TEST
-    unsigned                        rh_n_ops;
-#endif
 };
 
 typedef struct lsquic_rechist lsquic_rechist_t;

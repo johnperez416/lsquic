@@ -1,4 +1,4 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
 #pragma once
 #include <Windows.h>
 #include <winsock2.h>
@@ -19,8 +19,8 @@ struct iovec {
                                     4018:signed/unsigned mismatch
                                     4100:unreferenced formal parameter,
                                     4127: conditional expression is constant
-									4152: nonstandard extension, function/data pointer conversion in expression
-									4189:local variable is initialized but not referenced
+                                    4152: nonstandard extension, function/data pointer conversion in expression
+                                    4189:local variable is initialized but not referenced
                                     4200:zero-sized-array in struct, 
                                     4204: nonstandard extension used: non-constant aggregate initializer,
                                     4221: nonstandard extension used:xx cannot be initialized using address of automatic variable y,

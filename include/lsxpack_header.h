@@ -1,6 +1,6 @@
-/* Copyright (c) 2017 - 2021 LiteSpeed Technologies Inc.  See LICENSE. */
-#ifndef LSXPACK_HEADER_H_v206
-#define LSXPACK_HEADER_H_v206
+/* Copyright (c) 2017 - 2022 LiteSpeed Technologies Inc.  See LICENSE. */
+#ifndef LSXPACK_HEADER_H_v208
+#define LSXPACK_HEADER_H_v208
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +14,7 @@ extern "C" {
 #define LSXPACK_MAX_STRLEN UINT16_MAX
 #endif
 
+typedef int32_t lsxpack_offset_t;
 #if LSXPACK_MAX_STRLEN == UINT16_MAX
 typedef uint16_t lsxpack_strlen_t;
 #elif LSXPACK_MAX_STRLEN == UINT32_MAX
@@ -49,9 +50,9 @@ struct lsxpack_header
     char             *buf;          /* the buffer for headers */
     uint32_t          name_hash;    /* hash value for name */
     uint32_t          nameval_hash; /* hash value for name + value */
-    lsxpack_strlen_t  name_offset;  /* the offset for name in the buffer */
+    lsxpack_offset_t  name_offset;  /* the offset for name in the buffer */
+    lsxpack_offset_t  val_offset;   /* the offset for value in the buffer */
     lsxpack_strlen_t  name_len;     /* the length of name */
-    lsxpack_strlen_t  val_offset;   /* the offset for value in the buffer */
     lsxpack_strlen_t  val_len;      /* the length of value */
     uint16_t          chain_next_idx; /* mainly for cookie value chain */
     uint8_t           hpack_index;  /* HPACK static table index */
@@ -71,10 +72,10 @@ lsxpack_header_set_idx(lsxpack_header_t *hdr, int hpack_idx,
 {
     memset(hdr, 0, sizeof(*hdr));
     hdr->buf = (char *)val;
-    hdr->hpack_index = hpack_idx;
+    hdr->hpack_index = (uint8_t)hpack_idx;
     assert(hpack_idx != 0);
     assert(val_len <= LSXPACK_MAX_STRLEN);
-    hdr->val_len = val_len;
+    hdr->val_len = (lsxpack_strlen_t)val_len;
 }
 
 
@@ -84,11 +85,11 @@ lsxpack_header_set_qpack_idx(lsxpack_header_t *hdr, int qpack_idx,
 {
     memset(hdr, 0, sizeof(*hdr));
     hdr->buf = (char *)val;
-    hdr->qpack_index = qpack_idx;
+    hdr->qpack_index = (uint8_t)qpack_idx;
     assert(qpack_idx != -1);
     hdr->flags = LSXPACK_QPACK_IDX;
     assert(val_len <= LSXPACK_MAX_STRLEN);
-    hdr->val_len = val_len;
+    hdr->val_len = (lsxpack_strlen_t)val_len;
 }
 
 
@@ -99,13 +100,13 @@ lsxpack_header_set_offset(lsxpack_header_t *hdr, const char *buf,
 {
     memset(hdr, 0, sizeof(*hdr));
     hdr->buf = (char *)buf;
-    hdr->name_offset = name_offset;
+    hdr->name_offset = (lsxpack_offset_t)name_offset;
     assert(name_len <= LSXPACK_MAX_STRLEN);
-    hdr->name_len = name_len;
+    hdr->name_len = (lsxpack_strlen_t)name_len;
     assert(name_offset + name_len + 2 <= LSXPACK_MAX_STRLEN);
-    hdr->val_offset = name_offset + name_len + 2;
+    hdr->val_offset = (lsxpack_offset_t)(name_offset + name_len + 2);
     assert(val_len <= LSXPACK_MAX_STRLEN);
-    hdr->val_len = val_len;
+    hdr->val_len = (lsxpack_strlen_t)val_len;
 }
 
 
@@ -116,13 +117,13 @@ lsxpack_header_set_offset2(lsxpack_header_t *hdr, const char *buf,
 {
     memset(hdr, 0, sizeof(*hdr));
     hdr->buf = (char *)buf;
-    hdr->name_offset = name_offset;
+    hdr->name_offset = (lsxpack_offset_t)name_offset;
     assert(name_len <= LSXPACK_MAX_STRLEN);
-    hdr->name_len = name_len;
+    hdr->name_len = (lsxpack_strlen_t)name_len;
     assert(val_offset <= LSXPACK_MAX_STRLEN);
-    hdr->val_offset = val_offset;
+    hdr->val_offset = (lsxpack_offset_t)val_offset;
     assert(val_len <= LSXPACK_MAX_STRLEN);
-    hdr->val_len = val_len;
+    hdr->val_len = (lsxpack_strlen_t)val_len;
 }
 
 
@@ -133,11 +134,11 @@ lsxpack_header_prepare_decode(lsxpack_header_t *hdr,
     memset(hdr, 0, sizeof(*hdr));
     hdr->buf = out;
     assert(offset <= LSXPACK_MAX_STRLEN);
-    hdr->name_offset = offset;
+    hdr->name_offset = (lsxpack_offset_t)offset;
     if (len > LSXPACK_MAX_STRLEN)
         hdr->val_len = LSXPACK_MAX_STRLEN;
     else
-        hdr->val_len = len;
+        hdr->val_len = (lsxpack_strlen_t)len;
 }
 
 
@@ -166,4 +167,4 @@ lsxpack_header_mark_val_changed(lsxpack_header_t *hdr)
 }
 #endif
 
-#endif //LSXPACK_HEADER_H_v206
+#endif //LSXPACK_HEADER_H_v208
