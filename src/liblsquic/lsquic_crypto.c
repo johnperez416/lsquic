@@ -359,7 +359,7 @@ lsquic_export_key_material(const unsigned char *ikm, uint32_t ikm_len,
 void lsquic_c255_get_pub_key(unsigned char *priv_key, unsigned char pub_key[32])
 {
     int len = 32;
-    size_t outlen;
+    size_t outlen = 32;
     EVP_PKEY *key = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, NULL, priv_key, len);
     
     if (key != NULL)
@@ -372,7 +372,7 @@ int lsquic_c255_gen_share_key(unsigned char *priv_key, unsigned char *peer_pub_k
 {
     int ret = -1;
     int len = 32;
-    size_t outlen;
+    size_t outlen = 32;
     EVP_PKEY *my_key = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, NULL, priv_key, len);
     EVP_PKEY *pub_key = EVP_PKEY_new_raw_public_key(EVP_PKEY_X25519, NULL, peer_pub_key, len);
     EVP_PKEY_CTX *ctx = NULL;
